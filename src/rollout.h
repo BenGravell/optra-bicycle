@@ -3,6 +3,7 @@
 #include <Eigen/Dense>
 #include <vector>
 
+#include "constants.h"
 #include "dynamics.h"
 #include "policy.h"
 #include "space.h"
@@ -16,6 +17,32 @@ inline void rolloutOpenLoop(const ActionSequence& action_sequence, const StateVe
     for (size_t stage_idx = 0; stage_idx < traj_length; ++stage_idx) {
         traj.setActionAt(stage_idx, action_sequence.col(stage_idx));
         traj.setStateAt(stage_idx + 1, dynamics.forward(traj.stateAt(stage_idx), traj.actionAt(stage_idx)));
+    }
+}
+
+inline void rolloutOpenLoopConstrained(const ActionSequence& action_sequence, const StateVector& initial_state, const Dynamics& dynamics, Trajectory& traj) {
+    // Initialize the first state in the state sequence.
+    traj.setStateAt(0, initial_state);
+
+    // Simulate dynamics forward using open-loop action sequence.
+    for (size_t stage_idx = 0; stage_idx < traj_length; ++stage_idx) {
+        // Extract
+        const StateVector& state = traj.stateAt(stage_idx);
+        ActionVector action = action_sequence.col(stage_idx);
+
+        // Project
+        const double v_sq = state[3] * state[3];
+        double lon_accel = action[0];
+        double lat_accel = action[1] * v_sq;
+        double curvature = action[1];
+        const double dyn_max_curvature = std::min(max_curvature, max_lat_accel / (v_sq + 1e-12));
+        lon_accel = std::clamp(lon_accel, -max_lon_accel, max_lon_accel);
+        curvature = std::clamp(curvature, -dyn_max_curvature, dyn_max_curvature);
+        action << lon_accel, curvature;
+
+        // Advance
+        traj.setActionAt(stage_idx, action);
+        traj.setStateAt(stage_idx + 1, dynamics.forward(state, action));
     }
 }
 
