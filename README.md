@@ -2,9 +2,19 @@
 
 Optimization of trajectories for bicycle systems.
 
-Provides the following trajectory optimization solvers:
+The approach is to use RRT + iLQR.
 
-- iterative Linear Quadratic Regulator (iLQR)
+Rapidly exploring random tree (RRT) provides a strong initial guess at a good path to the goal that avoids obstacles.
+
+Iterative Linear Quadratic Regulator (iLQR) optimizes the trajectory.
+
+The optimized trajectory is fed into the RRT to warm-start it and re-use computations from previous iterations.
+
+The RRT and iLQR work together to provide rapid replanning and iterative optimization.
+
+This planner runs extremely quickly, at rates as fast as 50 Hz.
+
+The planner is interactive via the raylib app engine.
 
 ## Development
 
@@ -38,6 +48,18 @@ cmake --build build/release --config Release
 
 Use LTO for further optimization at link time yielding maximum performance of the compiled executable.
 Relies on LLVM / LLD.
+
+Linux
+
+```bash
+conan install . --build=missing -of=build/conan --settings=build_type=Release
+
+cmake -B build/release -S . -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="build/conan/conan_toolchain.cmake" -DCMAKE_CXX_FLAGS="-march=native -ffast-math -flto=auto" -DCMAKE_C_FLAGS="-march=native -ffast-math -flto=auto"
+
+cmake --build build/release --config Release
+```
+
+Windows
 
 ```pwsh
 conan install . --build=missing -of=build/conan --settings=build_type=Release

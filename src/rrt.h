@@ -1,77 +1,91 @@
 #pragma once
 
 #include <Eigen/Dense>
+#include <algorithm>
 #include <fstream>
-#include <indicators/cursor_control.hpp>
-#include <indicators/progress_bar.hpp>
+// #include <indicators/cursor_control.hpp>
+// #include <indicators/progress_bar.hpp>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <random>
 #include <sstream>
 #include <string>
-#include <optional>
 #include <vector>
-#include <algorithm>
-
 
 #include "constants.h"
 #include "printing.h"
 #include "solver.h"
 #include "space.h"
-#include "steer_cubic.h"
+#include "steer.h"
 #include "trajectory.h"
 
 // Define a global random number generator
 std::random_device rd;
 std::mt19937 gen(rd());  // Mersenne Twister engine
 
-static int steer_hifi_count = 0;
-static int steer_lofi_count = 0;
-static int sample_count = 0;
-static int get_nearest_heuristic_count = 0;
+static constexpr double x_max = 20.0;
+static constexpr double x_min = 0.0;
 
-// Static global file counter
-static int file_count = 0;
+static constexpr double y_max = 2.0;
+static constexpr double y_min = -y_max;
 
-static constexpr double max_lon_accel = 3.0;
-static constexpr double max_lat_accel = 6.0;
-static constexpr double max_curvature = 0.25;
+static constexpr double yaw_max = 0.5 * PI;
+static constexpr double yaw_min = -yaw_max;
 
+static constexpr double v_max = 5.0;
+static constexpr double v_min = 0.0;
 
-// DEBUG
-static int total_solve_time = 0.0;
+// Number of neighbor nodes to consider in the getNearest function
+static constexpr int num_nodes_heuristic_neighbors = 4;
+static constexpr int num_nodes_random_neighbors = 4;
 
+// Max estimated trajectory duration allowed between samples
+static constexpr double max_t_est_sample = 0.5 * traj_length_steer;  // seconds
+// Factor used to iteratively pull samples closer to nearest parent
+static constexpr double attract_factor = 0.6;  // should be in (0, 1), closer to 1 means less aggressive moves (precise search, more iterations)
 
-
-
+// TODO move somewhere more generic
 double angularDifference(double angle1, double angle2) {
     // Compute the difference and shift by PI
     double diff = std::fmod(angle2 - angle1 + PI, 2 * PI);
     // Adjust if fmod returns a negative result
-    if (diff < 0)
+    if (diff < 0) {
         diff += 2 * PI;
+    }
     // Shift back by subtracting PI to get a range of [-PI, PI]
     return diff - PI;
 }
 
-inline double lowerBoundTimeBetween(const StateVector& start, const StateVector& goal) {
-    const double distance = (start.head(2) - goal.head(2)).norm();
-    const double velocity = (start[3] + goal[3]) / 2;
-    const double speed = std::max(std::abs(velocity), 1e-3);
-    return distance / speed;
-}
-
 inline double estimateTimeBetween(const StateVector& start, const StateVector& goal) {
     const double distance = (start.head(2) - goal.head(2)).norm();
-    const double velocity = (start[3] + goal[3]) / 2;
-    const double speed = std::max(std::abs(velocity), 1e-3);
     // Heuristic
-    const double angle_diff = std::abs(angularDifference(start[2], goal[2])) / PI;
+    const double angle_diff = std::abs(angularDifference(start[2], goal[2])) / PI;  // in [0, 1]
     const double anle_diff_factor = angle_diff * angle_diff;
-    return (1.0 + anle_diff_factor) * (distance / speed);
+
+    const double d = (1.0 + anle_diff_factor) * distance;
+
+    // Speed
+    const double v1 = start[3];
+    const double v2 = goal[3];
+    const double v_mid = std::abs(0.5 * (v1 + v2));
+
+    // Use a lesser amount of acceleration than the max.
+    const double a_factor = 0.3;
+    const double a_nom = a_factor * max_lon_accel;
+    const double ad = a_nom * d;
+    // Constant acceleration to the midpoint.
+    const double vm1 = std::sqrt(v1 * v1 + ad);
+    const double vm2 = std::sqrt(v2 * v2 + ad);
+    const double vm = std::abs(0.5 * (vm1 + vm2));
+
+    const double v_nom = 0.5 * (v_mid + vm);
+    const double speed = std::max(v_nom, 0.01);
+
+    return d / speed;
 }
 
 struct Position {
@@ -87,122 +101,62 @@ inline double distancePositionState(const Position& position, const StateVector&
     return (state.head(2) - Eigen::Vector2d(position.x, position.y)).norm();
 }
 
-inline double heuristicCost(const StateVector& source, const StateVector& target) {
-    // const double distance = (source.head(2) - target.head(2)).norm();
-    // // HACK clamping to something just smaller than PI to keep cost finite / avoid division by zero
-    // // NOTE this also assumes no angle wrap around issues... use angular difference in the future
-    // const double d_yaw = std::clamp(source[2] - target[2], -3.14, 3.14);
-    // const double yaw_cost = 10 * ((1 / std::cos(0.5 * d_yaw)) - 1);
-    // const double velocity_cost = 0.5 * std::abs(source[3] - target[3]);
-    // const double cost = distance + yaw_cost + velocity_cost;
-    // return cost;
-
-    // Just use estimateTimeBetween
-    return estimateTimeBetween(source, target);
-}
-
-inline double timeCost(const Solution& solution) {
+template <int N>
+inline double timeCost(const Solution<N>& solution) {
+    // NOTE: solution.cost is the sum of all stage costs.
+    // So here we divide by traj.length to get the stage-averaged cost before multiplying with the duration.
     // TODO pull cost weight out to global for configurable constant
-    static constexpr double cost_weight = 0.1 / traj_length;
+    static constexpr double cost_weight = 0.3 / solution.traj.length;
     return solution.total_time * (1.0 + cost_weight * solution.cost);
 }
 
-inline Solution steerHifi(const StateVector& start, const StateVector& goal, const double total_time, const ActionSequence& action_sequence) {
-    steer_hifi_count++;
-
-    // Define the optimal control problem.
-    const Problem problem = makeProblem(start, goal, total_time);
-
-    // Solver settings.
-    const SolverSettings settings = SolverSettings();
-    // settings.validate();
-
-    // Instantiate the solver.
-    Solver solver = Solver(std::make_shared<Problem>(problem), std::make_shared<SolverSettings>(settings));
-
-    // Solve the optimal control problem.
-    return solver.solve(action_sequence);
-
-    // Solve with a fixed number of iterations. solveFixedIters() is faster on a per-iteration basis due to fewer conditionals.
-    // Empirically, I've seen a distribution with
-    // p000 =  1
-    // p005 =  3
-    // p025 =  6
-    // p050 =  8
-    // p075 = 10
-    // p090 = 12
-    // p095 = 16
-    // p100 = 40
-    // For now this does not seem to help much since there is so much variation in the # iters needed, and running too few iterations causes lots of failed steerHifi solutions.
-    // return solver.solveFixedIters(action_sequence, 20);
-}
-
-// inline std::tuple<Solution, double> steer(const StateVector& start, const StateVector& goal) {
-//     const auto [action_sequence, total_time] = steer_cubic(start, goal);
-
-//     // // TODO use cubic action_sequence
-//     // const ActionSequence action_sequence = ActionSequence::Zero();
-//     // const double total_time = estimateTimeBetween(start, goal);
-
-//     Solution solution = steerHifi(start, goal, total_time, action_sequence);
-
-//     // TODO refactor
-//     // Soft loss
-//     double cost = 0.0;
-//     for (int i = 0; i < traj_length; ++i) {
-//         const StateVector& state = solution.traj.stateAt(i);
-//         const ActionVector& action = solution.traj.actionAt(i);
-//         const double lon_accel = action[0];
-//         const double lat_accel = action[1] * state[3] * state[3];
-//         cost += lon_accel * lon_accel + lat_accel * lat_accel;
-//     }
-//     solution.cost = cost;
-
-//     return std::make_tuple(solution, total_time);
-// }
-
-inline double softLoss(const Trajectory& traj) {
+template <int N>
+inline double softLoss(const Trajectory<N>& traj) {
     double cost = 0.0;
-    for (int i = 0; i < traj_length; ++i) {
+    for (int i = 0; i < traj.length; ++i) {
         const StateVector& state = traj.stateAt(i);
         const ActionVector& action = traj.actionAt(i);
         const double lon_accel = action[0];
         const double lat_accel = action[1] * state[3] * state[3];
-        cost += lon_accel * lon_accel + lat_accel * lat_accel;
+        cost += std::sqrt(lon_accel * lon_accel + lat_accel * lat_accel);
     }
     return cost;
 }
 
-inline Solution steerLofi(const StateVector& start, const StateVector& goal, const double t_est) {
-    steer_lofi_count++;
+inline Solution<traj_length_steer> steerLofi(const StateVector& start, const StateVector& goal, const double total_time, const bool project) {
+    const ActionSequence<traj_length_steer> action_sequence = steer_cubic<traj_length_steer>(start, goal, total_time);
 
-    const auto [action_sequence, total_time] = steer_cubic::steer_cubic(start, goal, t_est, max_lon_accel, max_lat_accel);
-    // const auto [action_sequence, total_time] = steer_cubic::steer_quintic(start, goal, t_est, max_lon_accel, max_lat_accel);
+    const double dt = total_time / traj_length_steer;
 
-    const double delta_time = total_time / traj_length;
+    const Dynamics dynamics{dt};
 
-    const Dynamics dynamics{delta_time};
+    Trajectory<traj_length_steer> traj;
+    if (project) {
+        rolloutOpenLoopConstrained(action_sequence, start, dynamics, traj);
+    } else {
+        rolloutOpenLoop(action_sequence, start, dynamics, traj);
+    }
 
-    Trajectory traj;
-    rolloutOpenLoop(action_sequence, start, dynamics, traj);
-    Policy policy;
-    // const double cost = problem.loss.totalValue(traj);
-    const double cost = softLoss(traj);
+    // Calculate cost
+    const double cost = softLoss<traj_length_steer>(traj);
 
+    // Dummies
+    const Policy<traj_length_steer> policy;
     const SolveStatus solve_status = SolveStatus::kConverged;
     const SolveRecord solve_record;
-    const Solution solution{traj, policy, cost, total_time, solve_status, solve_record};
 
-    return solution;
+    return {traj, policy, cost, total_time, solve_status, solve_record};
 }
 
 struct Node {
     const StateVector state;
     const std::shared_ptr<Node> parent;
-    const Trajectory traj;
+    const Trajectory<traj_length_steer> traj;
     const double cost;
+    const double cost_to_come;
     const double total_time;
     const int ix;
+    const bool is_warm{false};
 };
 
 inline double urand() {
@@ -217,26 +171,74 @@ inline double urand(const double x_min, const double x_max) {
     return dist(gen);
 }
 
-inline StateVector sample(const StateVector& goal) {
-    sample_count++;
+inline std::pair<StateVector, int> sample(const StateVector& goal, const std::optional<Solution<traj_length_opt>>& warm = std::nullopt) {
+    const double selector = urand();
+    int sample_type = 0;  // nominal
+    if ((selector > 0.8) && warm) {
+        sample_type = 1;  // warm
+    }
+    if (selector > 0.9) {
+        sample_type = 2;  // goal
+    }
 
-    const bool near_goal = urand() > 0.90;
-    // constexpr bool near_goal = false;
+    double x_min_s{0.0};
+    double x_max_s{0.0};
+    double y_min_s{0.0};
+    double y_max_s{0.0};
+    double yaw_min_s{0.0};
+    double yaw_max_s{0.0};
+    double v_min_s{0.0};
+    double v_max_s{0.0};
 
-    const double xmin = near_goal ? goal(0) - 0.5 : 0.0;
-    const double xmax = near_goal ? goal(0) + 0.5 : 20.0;
-    const double ymin = near_goal ? goal(1) - 0.5 : -2.0;
-    const double ymax = near_goal ? goal(1) + 0.5 : 2.0;
-    const double yaw_min = near_goal ? goal(2) - 0.05 * PI : -0.25 * PI;
-    const double yaw_max = near_goal ? goal(2) + 0.05 * PI : 0.25 * PI;
-    const double vmin = near_goal ? goal(3) - 0.2 : 0.0;
-    const double vmax = near_goal ? goal(3) + 0.2 : 5.0;
+    // TODO use an enum and a switch statement
+    if (sample_type == 0) {
+        x_min_s = x_min;
+        x_max_s = x_max;
+        y_min_s = y_min;
+        y_max_s = y_max;
+        yaw_min_s = yaw_min;
+        yaw_max_s = yaw_max;
+        v_min_s = v_min;
+        v_max_s = v_max;
+    } else if (sample_type == 1) {
+        // Choose a random state from the warm-start solution
+        const int stage_ix = std::lround(urand(0, traj_length_opt));
+        const StateVector& state = warm->traj.stateAt(stage_ix);
 
-    const double x = urand(xmin, xmax);
-    const double y = urand(ymin, ymax);
-    const double yaw = urand(yaw_min, yaw_max);
-    const double v = urand(vmin, vmax);
-    return StateVector(x, y, yaw, v);
+        x_min_s = state(0) - 0.2;
+        x_max_s = state(0) + 0.2;
+        y_min_s = state(1) - 0.2;
+        y_max_s = state(1) + 0.2;
+        yaw_min_s = state(2) - 0.05 * PI;
+        yaw_max_s = state(2) + 0.05 * PI;
+        v_min_s = state(3) - 0.2;
+        v_max_s = state(3) + 0.2;
+    } else if (sample_type == 2) {
+        x_min_s = goal(0) - 0.2;
+        x_max_s = goal(0) + 0.2;
+        y_min_s = goal(1) - 0.2;
+        y_max_s = goal(1) + 0.2;
+        yaw_min_s = goal(2) - 0.05 * PI;
+        yaw_max_s = goal(2) + 0.05 * PI;
+        v_min_s = goal(3) - 0.2;
+        v_max_s = goal(3) + 0.2;
+    }
+
+    x_min_s = std::clamp(x_min_s, x_min, x_max);
+    x_max_s = std::clamp(x_max_s, x_min, x_max);
+    y_min_s = std::clamp(y_min_s, y_min, y_max);
+    y_max_s = std::clamp(y_max_s, y_min, y_max);
+    yaw_min_s = std::clamp(yaw_min_s, yaw_min, yaw_max);
+    yaw_max_s = std::clamp(yaw_max_s, yaw_min, yaw_max);
+    v_min_s = std::clamp(v_min_s, v_min, v_max);
+    v_max_s = std::clamp(v_max_s, v_min, v_max);
+
+    const double x = urand(x_min_s, x_max_s);
+    const double y = urand(y_min_s, y_max_s);
+    const double yaw = urand(yaw_min_s, yaw_max_s);
+    const double v = urand(v_min_s, v_max_s);
+
+    return std::make_pair(StateVector(x, y, yaw, v), sample_type);
 }
 
 struct Obstacle {
@@ -247,10 +249,10 @@ struct Obstacle {
         return distanceSquaredPositionState(center, state) < (radius * radius);
     }
 
-    // TODO use continuous collision checking
-    bool collidesWith(const Trajectory& traj) const {
-        for (int stage_idx = 0; stage_idx <= traj_length; ++stage_idx) {
-            if (collidesWith(traj.stateAt(stage_idx))) {
+    template <int N>
+    bool collidesWith(const Trajectory<N>& traj) const {
+        for (int stage_ix = N; stage_ix >= 0; --stage_ix) {
+            if (collidesWith(traj.stateAt(stage_ix))) {
                 return true;
             }
         }
@@ -258,70 +260,56 @@ struct Obstacle {
     }
 };
 
-inline bool checkStateBounds(const StateVector& state) {
-    const bool x_ok = (0.0 <= state[0]) && (state[0] <= 20.0);
-    const bool y_ok = (-2.0 <= state[1]) && (state[1] <= 2.0);
-    const bool yaw_ok = std::abs(state[2]) <= 0.2 * PI;
-    const bool v_ok = (0.0 <= state[3]) && (state[3] <= 10.0);
-    return x_ok && y_ok && yaw_ok && v_ok;
+const Position obstacle_center{10.0, 0.0};
+const double obstacle_radius = 1.0;
+const Obstacle obstacle{obstacle_center, obstacle_radius};
+
+inline bool outsideEnvironment(const StateVector& state) {
+    const bool x_ok = (x_min <= state[0]) && (state[0] <= x_max);
+    const bool y_ok = (y_min <= state[1]) && (state[1] <= y_max);
+    const bool yaw_ok = (yaw_min <= state[2]) && (state[2] <= yaw_max);
+    const bool v_ok = (v_min <= state[3]) && (state[3] <= v_max);
+    return !(x_ok && y_ok && yaw_ok && v_ok);
 }
 
-inline bool checkActionBounds(const Solution& solution) {
-    // TODO should be taken care of in steering function itself and represented in Solution
-    for (int i = 0; i < traj_length; ++i) {
-        const StateVector& state = solution.traj.stateAt(i);
-        const ActionVector& action = solution.traj.actionAt(i);
-        const double lon_accel = action[0];
-        const double lat_accel = action[1] * state[3] * state[3];
-        const double curvature = action[1];
-        if ((std::abs(lon_accel) > max_lon_accel) || (std::abs(lat_accel) > max_lat_accel) || (std::abs(curvature) > max_curvature)) {
-            return false;
+template <int N>
+inline bool outsideEnvironment(const Trajectory<N>& traj) {
+    // Iterate in reverse since, heuristically, states at the end of the trajectory are more likely to fail the check and terminate the loop early.
+    for (int stage_ix = N; stage_ix >= 0; --stage_ix) {
+        if (outsideEnvironment(traj.stateAt(stage_ix))) {
+            return true;
         }
     }
-    return true;
+    return false;
 }
 
-inline bool checkSteerSuccess(const Solution& solution, const StateVector& target) {
-    const bool converged = solution.solve_status == SolveStatus::kConverged;
-
-    const StateVector delta = solution.traj.stateTerminal() - target;
+inline bool checkTargetHit(const StateVector& state, const StateVector& target, const double tol_factor) {
+    const StateVector delta = state - target;
     const double dx = delta[0];
     const double dy = delta[1];
     const double dyaw = delta[2];
     const double dv = delta[3];
 
-    // TODO use the TerminalStateParams. current numbers are set as 150% of the thresholds.
-    constexpr double factor = 1.5;
-    const bool dx_hit = std::abs(dx) < (factor * 0.01);
-    const bool dy_hit = std::abs(dy) < (factor * 0.01);
-    const bool dyaw_hit = std::abs(dyaw) < (factor * 0.02);
-    const bool dv_hit = std::abs(dv) < (factor * 0.01);
+    // TODO use the TerminalStateParams. current numbers are set as a factor of the thresholds.
+    const bool dx_hit = std::abs(dx) < (tol_factor * 0.01);
+    const bool dy_hit = std::abs(dy) < (tol_factor * 0.01);
+    const bool dyaw_hit = std::abs(dyaw) < (tol_factor * 0.02);
+    const bool dv_hit = std::abs(dv) < (tol_factor * 0.01);
 
-    const bool target_hit = dx_hit && dy_hit && dyaw_hit && dv_hit;
-
-    // // TODO heuristic
-    // const bool cost_too_high = solution.cost > 1000.0;
-    return converged && target_hit;
-    // return converged && target_hit && !cost_too_high;
+    return dx_hit && dy_hit && dyaw_hit && dv_hit;
 }
 
 struct Tree {
     std::vector<std::shared_ptr<Node>> nodes;
+    double ratio_rejected_samples{0.0};
 
     const std::shared_ptr<Node> getNearestHeuristic(const StateVector& target) const {
-        get_nearest_heuristic_count++;
-
-        // Make sure the tree is not empty.
-        if (nodes.empty()) {
-            std::cerr << "Called getNearestHeuristic on empty tree." << std::endl;
-            std::abort();
-        }
-
         double min_cost = std::numeric_limits<double>::max();
         std::shared_ptr<Node> nearest_node = nullptr;
         for (std::shared_ptr<Node> node : nodes) {
-            const double cost = heuristicCost(node->state, target);
-            if (cost < min_cost) {
+            const double cost = estimateTimeBetween(node->state, target);
+            const bool acceptable = cost < min_cost;
+            if (acceptable) {
                 min_cost = cost;
                 nearest_node = node;
             }
@@ -329,53 +317,28 @@ struct Tree {
         return nearest_node;
     }
 
-    // const std::vector<std::shared_ptr<Node>> getNearHeuristic(const StateVector& target, const int k) const {
-    //     // Create a vector of pairs: each pair contains the heuristic cost and the corresponding node.
-    //     std::vector<std::pair<double, std::shared_ptr<Node>>> cost_node_pairs;
-    //     for (const auto& node : nodes) {
-    //         const double cost = heuristicCost(node->state, target);
-    //         cost_node_pairs.emplace_back(cost, node);
-    //     }
-        
-    //     // Sort the vector by the heuristic cost (lower cost means closer to the target).
-    //     std::sort(cost_node_pairs.begin(), cost_node_pairs.end(),
-    //               [](const auto& a, const auto& b) {
-    //                   return a.first < b.first;
-    //               });
-        
-    //     // Prepare the result vector and take the first k nodes (or all if there are fewer than k)
-    //     std::vector<std::shared_ptr<Node>> near_nodes;
-    //     const int n = std::min(k, static_cast<int>(cost_node_pairs.size()));
-    //     for (int i = 0; i < n; ++i) {
-    //         near_nodes.push_back(cost_node_pairs[i].second);
-    //     }
-        
-    //     return near_nodes;
-    // }
-    
-    
     const std::vector<std::shared_ptr<Node>> getNearHeuristic(const StateVector& target, const int k, const int m) const {
         // Create a vector of pairs: each pair holds the heuristic cost and the corresponding node.
         std::vector<std::pair<double, std::shared_ptr<Node>>> cost_node_pairs;
         for (const auto& node : nodes) {
-            double cost = heuristicCost(node->state, target);  // assuming Node has a member 'state'
+            const double cost = estimateTimeBetween(node->state, target);
             cost_node_pairs.emplace_back(cost, node);
         }
-        
+
         // Sort the pairs by their heuristic cost (lower cost indicates closer proximity).
         std::sort(cost_node_pairs.begin(), cost_node_pairs.end(),
                   [](const auto& a, const auto& b) {
                       return a.first < b.first;
                   });
-        
+
         std::vector<std::shared_ptr<Node>> result;
-        
+
         // Select the k nearest nodes (or all if fewer than k are available).
-        int num_nearest = std::min(k, static_cast<int>(cost_node_pairs.size()));
+        const int num_nearest = std::min(k, static_cast<int>(cost_node_pairs.size()));
         for (int i = 0; i < num_nearest; ++i) {
             result.push_back(cost_node_pairs[i].second);
         }
-        
+
         // If additional m nodes are requested, select them randomly from the remaining nodes.
         if (m > 0 && cost_node_pairs.size() > static_cast<size_t>(num_nearest)) {
             std::vector<std::shared_ptr<Node>> remaining;
@@ -387,295 +350,223 @@ struct Tree {
             std::random_device rd;
             std::mt19937 gen(rd());
             std::shuffle(remaining.begin(), remaining.end(), gen);
-            
+
             // Choose up to m nodes from the shuffled remaining nodes.
-            int num_random = std::min(m, static_cast<int>(remaining.size()));
+            const int num_random = std::min(m, static_cast<int>(remaining.size()));
             for (int i = 0; i < num_random; ++i) {
                 result.push_back(remaining[i]);
             }
         }
-        
+
         return result;
     }
-    
 
-    const std::shared_ptr<Node> getNearestPrecise(const StateVector& target) const {
-        // Make sure the tree is not empty.
-        if (nodes.empty()) {
-            std::cerr << "Called getNearest on empty tree." << std::endl;
-            std::abort();
-        }
-
+    const std::shared_ptr<Node> getCheapestSolutionPrecise(const StateVector& target) const {
         double min_cost = std::numeric_limits<double>::max();
-        std::shared_ptr<Node> nearest_node = nullptr;
-
+        std::shared_ptr<Node> best_node = nullptr;
         for (std::shared_ptr<Node> node : nodes) {
-            // Skip if too far.
-            // NOTE: Having an accurate and tight estimate for short-circuiting makes a huge difference in performance,
-            // since it lets us eliminate unnecessary calls to steerLofi(),
-            // which is a moderately expensive subroutine otherwise called many times.
-            const double cost_lower_bound = lowerBoundTimeBetween(node->state, target);
-            if (cost_lower_bound > min_cost) {
-                continue;
+            static constexpr double tol_factor = 5.0;
+            const bool target_hit = checkTargetHit(node->state, target, tol_factor);
+            const double cost = node->cost_to_come;
+            const bool cost_improved = cost < min_cost;
+            const bool acceptable = cost_improved && target_hit;
+            if (acceptable) {
+                min_cost = cost;
+                best_node = node;
             }
-
-            // Lofi steering
-            const double t_est = estimateTimeBetween(node->state, target);
-            const Solution solution = steerLofi(node->state, target, t_est);
-
-            const double time_cost = timeCost(solution);
-            const bool acceptable = time_cost < min_cost;
-            // const bool acceptable = checkSteerSuccess(solution, target) && (time_cost < min_cost);
-            if (!acceptable) {
-                continue;
-            }
-            min_cost = time_cost;
-            nearest_node = node;
         }
 
-        if (nearest_node == nullptr) {
-            nearest_node = getNearestHeuristic(target);
-        }
-
-        return nearest_node;
+        return (best_node != nullptr) ? best_node : getNearestHeuristic(target);
     }
 
-
     const std::shared_ptr<Node> getNearest(const StateVector& target) const {
-        // Make sure the tree is not empty.
-        if (nodes.empty()) {
-            std::cerr << "Called getNearest on empty tree." << std::endl;
-            std::abort();
-        }
-
         double min_cost = std::numeric_limits<double>::max();
         std::shared_ptr<Node> nearest_node = nullptr;
 
-        static constexpr int num_nodes_heuristic_neighbors = 10;
-        static constexpr int num_nodes_random_neighbors = 10;            
         const std::vector<std::shared_ptr<Node>> nodes_selected = getNearHeuristic(target, num_nodes_heuristic_neighbors, num_nodes_random_neighbors);
         for (std::shared_ptr<Node> node : nodes_selected) {
             // Skip if too far.
             // NOTE: Having an accurate and tight estimate for short-circuiting makes a huge difference in performance,
             // since it lets us eliminate unnecessary calls to steerLofi(),
             // which is a moderately expensive subroutine otherwise called many times.
-            const double cost_lower_bound = lowerBoundTimeBetween(node->state, target);
-            if (cost_lower_bound > min_cost) {
+            const double t_est = estimateTimeBetween(node->state, target);
+            if (t_est > min_cost) {
                 continue;
             }
 
             // Lofi steering
-            const double t_est = estimateTimeBetween(node->state, target);
-            const Solution solution = steerLofi(node->state, target, t_est);
-
-
-
-            // // TRAIN
-            // // Create a JSON object
-            // nlohmann::json j;
-
-            // // Populate the JSON
-            // j["start"] = { node->state(0), node->state(1), node->state(2), node->state(3) };
-            // j["goal"] = { target(0), target(1), target(2), target(3) };
-            // j["total_time"] = total_time;
-
-            
-            // // Build the filename from fileCounter (8 chars, zero-padded)
-            // std::ostringstream oss;
-            // oss << std::setw(8) << std::setfill('0') << file_count++;
-            // std::string filename = "data/" + oss.str() + ".json";
-
-            // // Write JSON to the file
-            // std::ofstream outFile(filename);
-            // outFile << j.dump(4) << std::endl;
-            // outFile.close();            
-
-
-
-            const double time_cost = timeCost(solution);
-            const bool acceptable = time_cost < min_cost;
-            if (!acceptable) {
-                continue;
+            const bool project = true;
+            const auto solution = steerLofi(node->state, target, t_est, project);
+            const double soln_cost = timeCost(solution);
+            static constexpr double tol_factor = 50.0;
+            const bool target_hit = checkTargetHit(solution.traj.stateTerminal(), target, tol_factor);
+            const bool cost_improved = soln_cost < min_cost;
+            const bool acceptable = cost_improved && target_hit;
+            if (acceptable) {
+                min_cost = soln_cost;
+                nearest_node = node;
             }
-            min_cost = time_cost;
-            nearest_node = node;
         }
 
-        if (nearest_node == nullptr) {
-            nearest_node = getNearestHeuristic(target);
-        }
-
-        return nearest_node;
+        return (nearest_node != nullptr) ? nearest_node : getNearestHeuristic(target);
     }
 
     void addNode(const std::shared_ptr<Node>& node) {
         nodes.push_back(node);
     }
 
-    void grow(const StateVector& start, const StateVector& goal, const int num_nodes, const std::optional<Solution>& warm = std::nullopt) {
-        const Position center{10.0, 0.0};
-        const double radius = 1.0;
-        const Obstacle obstacle{center, radius};
+    void grow(const StateVector& start, const StateVector& goal, const int num_nodes, const std::optional<Solution<traj_length_opt>>& warm = std::nullopt) {
+        int next_node_ix = 0;
+        int num_total_samples = 0;
+        int num_rejected_samples = 0;
 
         // Create root node and add to the tree.
-        const Trajectory root_traj;
-        const Node root_node = Node(start, nullptr, root_traj, 0.0, 0.0, 0);
-        const std::shared_ptr<Node> root_node_ptr = std::make_shared<Node>(root_node);
-        addNode(root_node_ptr);
+        const Trajectory<traj_length_steer> root_traj;
+        const Node root_node = Node(start, nullptr, root_traj, 0.0, 0.0, 0.0, next_node_ix);
+        // const std::shared_ptr<Node> root_node_ptr = std::make_shared<Node>(root_node);
+        addNode(std::make_shared<Node>(root_node));
+        next_node_ix++;
 
-
-        int next_node_ix = 1;
-        
-        // Add warm-start node.
+        // Add warm-start.
         if (warm) {
-            const Node warm_node = Node(warm->traj.stateTerminal(), root_node_ptr, warm->traj, warm->cost, warm->total_time, next_node_ix);
-            addNode(std::make_shared<Node>(warm_node));
-            next_node_ix++;
+            // Break solution up into several smaller nodes
+            static constexpr int num_nodes_warm = static_cast<int>(std::ceil(static_cast<double>(traj_length_opt) / static_cast<double>(traj_length_steer)));
+            std::shared_ptr<Node> sub_parent = std::make_shared<Node>(root_node);
+            for (int i = 0; i < num_nodes_warm; ++i) {
+                // Infer the indices into the whole solution for the current sub part.
+                const int ix_offset = i * traj_length_steer;
+
+                // Form the sub-solution
+                Trajectory<traj_length_steer> sub_traj;
+                Policy<traj_length_steer> sub_policy;
+                for (int stage_ix = 0; stage_ix <= traj_length_steer; ++stage_ix) {
+                    const int ix_in_warm_traj = ix_offset + stage_ix;
+                    sub_traj.setStateAt(stage_ix, warm->traj.stateAt(ix_in_warm_traj));
+                    if (stage_ix < traj_length_steer) {
+                        sub_traj.setActionAt(stage_ix, warm->traj.actionAt(ix_in_warm_traj));
+                        sub_policy.setFeedbackGainAt(stage_ix, warm->policy.feedbackGainAt(ix_in_warm_traj));
+                        sub_policy.setFeedfrwdGainAt(stage_ix, warm->policy.feedfrwdGainAt(ix_in_warm_traj));
+                    }
+                }
+                sub_policy.feedfrwd_gain_scale = warm->policy.feedfrwd_gain_scale;
+                const double sub_cost = softLoss(sub_traj);
+                const double sub_total_time = warm->total_time / num_nodes_warm;
+                const SolveStatus sub_solve_status = SolveStatus::kConverged;
+                const SolveRecord sub_solve_record = warm->solve_record;
+
+                // Populate the sub-solution
+                Solution<traj_length_steer> sub_soln{sub_traj, sub_policy, sub_cost, sub_total_time, sub_solve_status, sub_solve_record};
+
+                const double sub_time_cost = timeCost(sub_soln);
+
+                const bool is_warm = true;
+                const Node sub_node = Node(sub_soln.traj.stateTerminal(), sub_parent, sub_soln.traj, sub_time_cost, sub_time_cost + sub_parent->cost_to_come, sub_total_time, next_node_ix, is_warm);
+                const std::shared_ptr<Node> sub_node_ptr = std::make_shared<Node>(sub_node);
+                addNode(sub_node_ptr);
+                sub_parent = sub_node_ptr;
+                next_node_ix++;
+            }
         }
 
-        // indicators::show_console_cursor(false);
-        // indicators::ProgressBar bar{
-        //     indicators::option::BarWidth{50},
-        //     indicators::option::Start{"["},
-        //     indicators::option::Fill{"="},
-        //     indicators::option::Lead{">"},
-        //     indicators::option::Remainder{" "},
-        //     indicators::option::End{"]"},
-        //     indicators::option::PostfixText{"Growing tree"},
-        //     indicators::option::ShowPercentage{true},
-        //     indicators::option::ShowElapsedTime{true},
-        //     indicators::option::ShowRemainingTime{true}};
-
-        for (int node_ix = 1; node_ix <= num_nodes; ++node_ix) {
-            // const auto clock_start = std::chrono::high_resolution_clock::now();
-
+        for (int node_count = 1; node_count <= num_nodes; ++node_count) {
+            int num_rejected_samples_this_iter = -1;
             bool node_added = false;
             while (!node_added) {
+                num_rejected_samples_this_iter++;
+                num_total_samples++;
+
                 // Sample a new state.
-                StateVector state = sample(goal);
+                auto [state, mode] = sample(goal, warm);
+
+                // Set the parent as the nearest neighbor to the state.
+                // std::shared_ptr<Node> parent = getNearest(state);
+                // DEBUG
+                // std::shared_ptr<Node> parent = (urand() > 0.5) ? getCheapestSolutionPrecise(state) : getNearest(state);
+                std::shared_ptr<Node> parent = (mode == 2) ? getCheapestSolutionPrecise(state) : getNearest(state);
+
+                // Attempt to pull back the sampled state inside the free space
+                static constexpr int num_max_pullback_for_sample_collision_attempts = 10;
+                for (int i = 0; i < num_max_pullback_for_sample_collision_attempts; ++i) {
+                    if (obstacle.collidesWith(state)) {
+                        // Move the sampled state closer. Do not change the sampled speed.
+                        state.head<3>() = parent->state.head<3>() + attract_factor * (state.head<3>() - parent->state.head<3>());
+                    } else {
+                        break;
+                    }
+                }
 
                 // Terminate iteration early if sampled state is in collision.
                 if (obstacle.collidesWith(state)) {
                     continue;
                 }
 
-                // Set the parent as the nearest neighbor to the state.
-                std::shared_ptr<Node> parent = getNearest(state);
-                // // // DEBUG - this is currently not a good proxy metric, so can result in bad trees
-                // std::shared_ptr<Node> parent = getNearestHeuristic(state);
-
                 // Estimate time.
-                const double t_est = estimateTimeBetween(parent->state, state);
-                // Skip if too far.
+                double t_est = estimateTimeBetween(parent->state, state);
+
+                // Move sample closer to parent if too far.
                 // NOTE this is somewhat optional, but empirically seems to help reduce wasting effort on hard-to-connect states.
                 // It also helps keep the fixed number of steps in Trajectory responsible for a small time-delta, which helps limit time discretization inaccuracies.
-                if (t_est > 2.0) {
-                    continue;
+                while (t_est > max_t_est_sample) {
+                    // Move the sampled state closer. Do not change the sampled speed.
+                    state.head<3>() = parent->state.head<3>() + attract_factor * (state.head<3>() - parent->state.head<3>());
+                    t_est = estimateTimeBetween(parent->state, state);
                 }
 
                 // Steer from parent to child.
-                Solution solution = steerLofi(parent->state, state, t_est);
+                // Choose a random duration around the original estimate
+                const double t_steer = std::pow(1.5, urand(-1.0, 1.0)) * t_est;
+                const bool project = true;
+                const auto solution = steerLofi(parent->state, state, t_steer, project);
 
-                // Project actions onto box bounds, and reproject state sample as the terminal state in the trajectory
-                // TODO put this in a function
-                for (int i = 0; i < traj_length; ++i) {
-                    const StateVector& state = solution.traj.stateAt(i);
-                    const ActionVector& action = solution.traj.actionAt(i);
-                    const double v_sq = state[3] * state[3];
-                    double lon_accel = action[0];
-                    double lat_accel = action[1] * v_sq;
-                    double curvature = action[1];
-                    const double dyn_max_curvature = std::min(max_curvature, max_lat_accel / (v_sq + 1e-12));
-                    lon_accel = std::clamp(lon_accel, -max_lon_accel, max_lon_accel);
-                    curvature = std::clamp(curvature, -dyn_max_curvature, dyn_max_curvature);
-                    const ActionVector new_action{lon_accel, curvature};
-                    solution.traj.setActionAt(i, new_action);
-                }
-                const double delta_time = solution.total_time / traj_length;
-                const Dynamics dynamics{delta_time};
-                Trajectory traj;
-                rolloutOpenLoop(solution.traj.action_sequence, parent->state, dynamics, traj);
-                solution.traj = traj;
-                solution.cost = softLoss(solution.traj);
-                double time_cost = timeCost(solution);
+                // Calculate time cost
+                const double time_cost = timeCost(solution);
 
-                // NOTE: strictly speaking, we could still be violating the box bounds here, as they are state-dependent and we changed the trajectory.
-                // But it is unlikely to happen in practice, and it is not worth re-checking over and over again.
-                const StateVector& state_after_action_projection = traj.stateTerminal();
-
-                // // If action projection was too aggressive, skip
-                // if (heuristicCost(state_after_action_projection, state) > 1.0) {
-                //     continue;
-                // }
-
-                // Update state
-                state = state_after_action_projection;
-
-                // Terminate iteration early if sampled state is in collision.
-                // Have to check again after projection.
-                if (obstacle.collidesWith(state)) {
-                    continue;
-                }
-
-                // TODO this is ~optional. should be paired with checks on the entire trajectory to be in the free space too.
-                // NOTE: this can lead to 10% longer solve times!!!
-                // if action projection caused state to exit free space, continue
-                if (!checkStateBounds(state)) {
-                    continue;
-                }
+                // Reset state sample as the terminal state in the trajectory.
+                state = solution.traj.stateTerminal();
 
                 // Terminate iteration early if trajectory is in collision.
-                // NOTE: this may not be necessary (or even helpful) if hifi steering is used, especially if hifi steering has obstacle avoidance capability
                 if (obstacle.collidesWith(solution.traj)) {
                     continue;
                 }
 
-
-
-                // // final hifi steer
-                // solution = steerHifi(parent->state, state, total_time, solution.traj.action_sequence);
-
-                // solution.cost = softLoss(solution.traj);
-                // time_cost = timeCost(solution);
-
-                // // Terminate iteration early if steering failed.
-                // if (!checkSteerSuccess(solution, state)) {
-                //     continue;
-                // }
-
-                // // Terminate iteration early if trajectory is in collision.
-                // // Have to check again after hifi steer
-                // if (obstacle.collidesWith(solution.traj)) {
-                //     continue;
-                // }
-
-
-
+                // Terminate iteration early if action projection caused any trajectory state to go outside the environment.
+                // NOTE: this can lead to 10% longer solve times!!!
+                if (outsideEnvironment(solution.traj)) {
+                    continue;
+                }
 
                 // Create node from sampled state and add to the tree.
-                const Node node{state, parent, solution.traj, time_cost, solution.total_time, next_node_ix};
+                const Node node{state, parent, solution.traj, time_cost, time_cost + parent->cost_to_come, solution.total_time, next_node_ix};
                 addNode(std::make_shared<Node>(node));
                 next_node_ix++;
                 node_added = true;
-                // // DEBUG
-                // std::cout << "iLQR iters = " << solution.solve_record.iters << std::endl;
             }
 
-            // // DEBUG
-            // const auto clock_stop = std::chrono::high_resolution_clock::now();
-            // const auto clock_duration = std::chrono::duration_cast<std::chrono::microseconds>(clock_stop - clock_start).count();
-            // total_solve_time += clock_duration;
-
-            // // Update progress bar.
-            // const double progress = (static_cast<double>(node_ix) / static_cast<double>(num_nodes)) * 100.0;
-            // bar.set_progress(static_cast<size_t>(progress));
-            // std::stringstream ss;
-            // ss << "Added node " << node_ix << " at " << state2str(nodes.back()->state) << " with cost=" << val2str(nodes.back()->cost) << " [" << sample_count << " sample(), " << steer_hifi_count << " steerHifi(), " << steer_lofi_count << " steerLofi()" << "]";
-            // bar.set_option(indicators::option::PostfixText{ss.str()});
+            num_rejected_samples += num_rejected_samples_this_iter;
         }
+        ratio_rejected_samples = static_cast<double>(num_rejected_samples) / static_cast<double>(num_total_samples);
 
-        // bar.mark_as_completed();
-        // std::cout << "Total solve time = " << total_solve_time / 1000 << " milliseconds" << std::endl;
+        // ---- Steer to goal
+        const std::shared_ptr<Node> node_best = getNearest(goal);
+        static constexpr double tol_factor = 2.0;
+        const bool goal_hit = checkTargetHit(node_best->state, goal, tol_factor);
+        if (!goal_hit) {
+            // Estimate time.
+            const double t_est = estimateTimeBetween(node_best->state, goal);
+
+            // Steer from parent to child.
+            const bool project = true;
+            const auto solution = steerLofi(node_best->state, goal, t_est, project);
+            const double time_cost = timeCost(solution);
+            const StateVector& state = solution.traj.stateTerminal();
+
+            // Add node if trajectory is OK.
+            if (!(obstacle.collidesWith(solution.traj) || outsideEnvironment(solution.traj))) {
+                const Node node{state, node_best, solution.traj, time_cost, time_cost + node_best->cost_to_come, solution.total_time, next_node_ix};
+                addNode(std::make_shared<Node>(node));
+                next_node_ix++;
+            }
+        }
     }
 
     // Dump the tree to a JSON file.

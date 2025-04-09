@@ -43,7 +43,8 @@ class BackwardPassRunner {
     explicit BackwardPassRunner(const std::shared_ptr<Problem>& problem) : problem_(problem), Q_(), V_(), expected_cost_change_() {}
 
     // Perform a backward pass.
-    ExpectedCostChange run(const Trajectory& traj, const double reg, Policy& policy) {
+    template <int N>
+    ExpectedCostChange run(const Trajectory<N>& traj, const double reg, Policy<N>& policy) {
         // Reset the feedforward gain scaling.
         policy.feedfrwd_gain_scale = 1.0;
 
@@ -54,7 +55,7 @@ class BackwardPassRunner {
         V_ = problem_->loss.terminalGradientAndHessian(traj.stateTerminal());
 
         // Iterate backwards in time using dynamic programming.
-        for (size_t stage_idx_plus = traj_length; stage_idx_plus > 0; --stage_idx_plus) {
+        for (size_t stage_idx_plus = traj.length; stage_idx_plus > 0; --stage_idx_plus) {
             // Cannot use stage_idx directly in the for loop because it is size_t.
             // Use loop dummy var stage_idx_plus = stage_idx + 1 as a workaround.
             const size_t stage_idx = stage_idx_plus - 1;

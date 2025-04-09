@@ -19,8 +19,9 @@ struct Problem {
 };
 
 // Make a problem.
-inline Problem makeProblem(const StateVector initial_state, const StateVector terminal_state_target, const double total_time) {
-    const double delta_time = total_time / traj_length;
+inline Problem makeProblem(const StateVector initial_state, const StateVector terminal_state_target, const double total_time, const int traj_length) {
+    const double inverse_traj_length = 1.0 / traj_length;
+    const double delta_time = inverse_traj_length * total_time;
 
     // Create the dynamics model.
     const Dynamics dynamics{delta_time};
@@ -82,7 +83,7 @@ inline Problem makeProblem(const StateVector initial_state, const StateVector te
                                                     terminal_speed_tol};
 
     // Instantiate the loss.
-    const Loss loss{soft_params, vehicle_limits, vehicle_limits_params, terminal_state_params, terminal_state_target};
+    const Loss loss{soft_params, vehicle_limits, vehicle_limits_params, terminal_state_params, terminal_state_target, inverse_traj_length};
 
     // Return the constructed optimal control problem.
     return Problem{dynamics, loss, initial_state, total_time};

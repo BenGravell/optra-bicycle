@@ -12,9 +12,6 @@
 #include "trajectory.h"
 #include "util.h"
 
-// Scale all non-terminal loss terms by inverse of trajectory length
-// to make terminal loss terms less sensitive to trajectory length.
-static constexpr double inverse_traj_length = 1.0 / traj_length;
 
 // TODO put in loss config struct
 static constexpr double obstacle_loss_weight = 4.0;
@@ -100,6 +97,9 @@ struct Loss {
     VehicleLimitsParams vehicle_limits_params;
     TerminalStateParams terminal_state_params;
     StateVector terminal_state_target;
+    // Scale all non-terminal loss terms by inverse of trajectory length
+    // to make terminal loss terms less sensitive to trajectory length.
+    double inverse_traj_length;
 
     // ---- Methods
 
@@ -303,9 +303,10 @@ struct Loss {
         return {lx, lxx};
     }
 
-    double totalValue(const Trajectory& traj) const {
+    template <int N>
+    double totalValue(const Trajectory<N>& traj) const {
         double val = 0.0;
-        for (size_t stage_idx = 0; stage_idx < traj_length; ++stage_idx) {
+        for (size_t stage_idx = 0; stage_idx < traj.length; ++stage_idx) {
             val += value(traj.stateAt(stage_idx), traj.actionAt(stage_idx));
         }
         val += terminalValue(traj.stateTerminal());

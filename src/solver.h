@@ -46,9 +46,10 @@ struct SolveRecord {
     uint64_t rollouts{0};
 };
 
+template <int N>
 struct Solution {
-    Trajectory traj;
-    Policy policy;
+    Trajectory<N> traj;
+    Policy<N> policy;
     double cost;
     double total_time;
     SolveStatus solve_status;
@@ -63,10 +64,11 @@ class Solver {
           settings_(settings),
           backward_pass_runner_(std::make_shared<BackwardPassRunner>(problem_)) {}
 
+    template <int N>
     std::tuple<double, FfgsSearchStatus> feedfrwdGainSearch(
-        Trajectory& traj,
-        Trajectory& traj_dummy,
-        Policy& policy,
+        Trajectory<N>& traj,
+        Trajectory<N>& traj_dummy,
+        Policy<N>& policy,
         const ExpectedCostChange& expected_cost_change,
         const double cost) {
         for (size_t num_attempts = 1; num_attempts <= settings_->max_feedfrwd_gain_search_attempts; ++num_attempts) {
@@ -122,12 +124,13 @@ class Solver {
         return (!ffgs_search_failed && cost_converged) ? SolveStatus::kConverged : SolveStatus::kInProgress;
     }
 
-    Solution solve(const ActionSequence& action_sequence) {
+    template <int N>
+    Solution<N> solve(const ActionSequence<N>& action_sequence) {
         // Initialize trajectory, policy, cost, and regularization.
-        Trajectory traj;
-        Trajectory traj_dummy;
+        Trajectory<N> traj;
+        Trajectory<N> traj_dummy;
         rolloutOpenLoop(action_sequence, problem_->initial_state, problem_->dynamics, traj);
-        Policy policy;
+        Policy<N> policy;
         double cost = problem_->loss.totalValue(traj);
         double reg = settings_->regularization_init;
 
@@ -162,12 +165,13 @@ class Solver {
 
     // Impl that does not stop to check convergence, always uses max_iters.
     // By skipping convergence checks, we avoid branching and can get a significant per-iteration speedup. But we may run unnecessary iterations.
-    Solution solveFixedIters(const ActionSequence& action_sequence, const uint64_t num_iters = 0) {
+    template <int N>
+    Solution<N> solveFixedIters(const ActionSequence<N>& action_sequence, const uint64_t num_iters = 0) {
         // Initialize trajectory, policy, cost, and regularization.
-        Trajectory traj;
-        Trajectory traj_dummy;
+        Trajectory<N> traj;
+        Trajectory<N> traj_dummy;
         rolloutOpenLoop(action_sequence, problem_->initial_state, problem_->dynamics, traj);
-        Policy policy;
+        Policy<N> policy;
         double cost = problem_->loss.totalValue(traj);
         double cost_old = cost;
         double reg = settings_->regularization_init;

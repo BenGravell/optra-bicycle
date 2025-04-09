@@ -7,13 +7,17 @@
 #include "space.h"
 #include "trajectory.h"
 
-using FeedbackGainSequence = std::array<ActionStateMatrix, traj_length>;
-using FeedfrwdGainSequence = std::array<ActionVector, traj_length>;
+template <int N>
+using FeedbackGainSequence = std::array<ActionStateMatrix, N>;
+
+template <int N>
+using FeedfrwdGainSequence = std::array<ActionVector, N>;
 
 // Policy class. Affine in the state.
+template <int N>
 struct Policy {
-    FeedbackGainSequence feedback_gain_sequence;
-    FeedfrwdGainSequence feedfrwd_gain_sequence;
+    FeedbackGainSequence<N> feedback_gain_sequence;
+    FeedfrwdGainSequence<N> feedfrwd_gain_sequence;
     double feedfrwd_gain_scale{1.0};
 
     // Getters.

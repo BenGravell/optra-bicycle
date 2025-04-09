@@ -6,16 +6,23 @@
 
 #include "space.h"
 
-// static constexpr uint64_t traj_length = 10;
-// static constexpr uint64_t traj_length = 20;
-static constexpr uint64_t traj_length = 50;
 
-using StateSequence = Eigen::Matrix<double, num_states, traj_length + 1>;
-using ActionSequence = Eigen::Matrix<double, num_actions, traj_length>;
+// traj_length_opt needs to be a multiple of traj_length_steer
+static constexpr uint64_t traj_length_steer = 20;
+static constexpr uint64_t traj_length_opt = 100;
 
+template <int N>
+using StateSequence = Eigen::Matrix<double, num_states, N + 1>;
+
+template <int N>
+using ActionSequence = Eigen::Matrix<double, num_actions, N>;
+
+template <int N>
 struct Trajectory {
-    StateSequence state_sequence;
-    ActionSequence action_sequence;
+    static constexpr int length = N;
+
+    StateSequence<N> state_sequence;
+    ActionSequence<N> action_sequence;
 
     // Getter for the state at a specific stage index.
     StateVector stateAt(const size_t stage_idx) const {
