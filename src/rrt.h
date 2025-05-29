@@ -105,13 +105,17 @@ inline double distance(const Position& position, const StateVector& state) {
     return positionDelta(position, state).norm();
 }
 
+
+// Weighting of solution cost relative to duration.
+static constexpr double cost_weight = 0.3;
+
 template <int N>
 inline double timeCost(const Solution<N>& solution) {
     // NOTE: solution.cost is the sum of all stage costs.
     // So here we divide by traj.length to get the stage-averaged cost before multiplying with the duration.
     // TODO pull cost weight out to global for configurable constant
-    static constexpr double cost_weight = 0.3 / solution.traj.length;
-    return solution.total_time * (1.0 + cost_weight * solution.cost);
+    static constexpr double cost_weight_by_traj_length = cost_weight / solution.traj.length;
+    return solution.total_time * (1.0 + cost_weight_by_traj_length * solution.cost);
 }
 
 template <int N>
@@ -427,7 +431,6 @@ struct Tree {
         // Create root node and add to the tree.
         const Trajectory<traj_length_steer> root_traj;
         const Node root_node = Node(start, nullptr, root_traj, 0.0, 0.0, 0.0, next_node_ix);
-        // const std::shared_ptr<Node> root_node_ptr = std::make_shared<Node>(root_node);
         addNode(std::make_shared<Node>(root_node));
         next_node_ix++;
 
@@ -484,8 +487,6 @@ struct Tree {
 
                 // Set the parent as the nearest neighbor to the state.
                 // std::shared_ptr<Node> parent = getNearest(state);
-                // DEBUG
-                // std::shared_ptr<Node> parent = (urand() > 0.5) ? getCheapestSolutionPrecise(state) : getNearest(state);
                 std::shared_ptr<Node> parent = (mode == 2) ? getCheapestSolutionPrecise(state) : getNearest(state);
 
                 // Attempt to pull back the sampled state inside the free space
