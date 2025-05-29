@@ -64,9 +64,9 @@ inline double estimateTimeBetween(const StateVector& start, const StateVector& g
     const double distance = (start.head(2) - goal.head(2)).norm();
     // Heuristic
     const double angle_diff = std::abs(angularDifference(start[2], goal[2])) / PI;  // in [0, 1]
-    const double anle_diff_factor = angle_diff * angle_diff;
+    const double angle_diff_factor = square(angle_diff);
 
-    const double d = (1.0 + anle_diff_factor) * distance;
+    const double d = (1.0 + angle_diff_factor) * distance;
 
     // Speed
     const double v1 = start[3];
