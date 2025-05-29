@@ -93,12 +93,16 @@ struct Position {
     const double y;
 };
 
-inline double distanceSquaredPositionState(const Position& position, const StateVector& state) {
-    return (state.head(2) - Eigen::Vector2d(position.x, position.y)).squaredNorm();
+inline Eigen::Vector2d positionDelta(const Position& position, const StateVector& state) {
+    return state.head(2) - Eigen::Vector2d(position.x, position.y);
 }
 
-inline double distancePositionState(const Position& position, const StateVector& state) {
-    return (state.head(2) - Eigen::Vector2d(position.x, position.y)).norm();
+inline double distanceSquared(const Position& position, const StateVector& state) {
+    return positionDelta(position, state).squaredNorm();
+}
+
+inline double distance(const Position& position, const StateVector& state) {
+    return positionDelta(position, state).norm();
 }
 
 template <int N>
@@ -246,7 +250,7 @@ struct Obstacle {
     const double radius;
 
     bool collidesWith(const StateVector& state) const {
-        return distanceSquaredPositionState(center, state) < (radius * radius);
+        return distanceSquared(center, state) < square(radius);
     }
 
     template <int N>

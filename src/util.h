@@ -9,7 +9,7 @@ T square(const T x) {
 
 template <typename T>
 T cube(const T x) {
-    return x * x * x;
+    return x * square(x);
 }
 
 template <typename T>

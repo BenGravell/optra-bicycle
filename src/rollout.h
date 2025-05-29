@@ -28,11 +28,11 @@ inline void rolloutOpenLoopConstrained(const ActionSequence<N>& action_sequence,
 
     // Simulate dynamics forward using open-loop action sequence.
     for (size_t stage_idx = 0; stage_idx < traj.length; ++stage_idx) {
-        // Extract
+        // Extract state and action.
         const StateVector& state = traj.stateAt(stage_idx);
         ActionVector action = action_sequence.col(stage_idx);
 
-        // Project
+        // Project action.
         const double v_sq = state[3] * state[3];
         double lon_accel = action[0];
         double lat_accel = action[1] * v_sq;
@@ -42,7 +42,7 @@ inline void rolloutOpenLoopConstrained(const ActionSequence<N>& action_sequence,
         curvature = std::clamp(curvature, -dyn_max_curvature, dyn_max_curvature);
         action << lon_accel, curvature;
 
-        // Advance
+        // Simulate forward one step.
         traj.setActionAt(stage_idx, action);
         traj.setStateAt(stage_idx + 1, dynamics.forward(state, action));
     }

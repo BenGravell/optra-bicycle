@@ -7,9 +7,9 @@
 #include "space.h"
 
 
-// traj_length_opt needs to be a multiple of traj_length_steer
 static constexpr uint64_t traj_length_steer = 20;
 static constexpr uint64_t traj_length_opt = 100;
+static_assert((traj_length_opt % traj_length_steer) == 0, "traj_length_opt must be a multiple of traj_length_steer");
 
 template <int N>
 using StateSequence = Eigen::Matrix<double, num_states, N + 1>;

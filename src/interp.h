@@ -17,18 +17,16 @@ inline double interp(const std::vector<double>& xs, const std::vector<double>& f
         return fs.back();
     }
 
-    // Find the first element >= x.
+    // Find the indices i1 and i2 for the interval on xs containing x.
     const auto it = std::lower_bound(xs.begin(), xs.end(), x);
-    const int idx = static_cast<int>(it - xs.begin());
-    if (idx == 0) {
-        return fs.front();
-    }
+    const int i2 = static_cast<int>(std::distance(xs.begin(), it));
+    const int i1 = i2 - 1;
 
     // Linear interpolation in [idx-1, idx].
-    const double x1 = xs[idx - 1];
-    const double x2 = xs[idx];
-    const double f1 = fs[idx - 1];
-    const double f2 = fs[idx];
+    const double x1 = xs[i1];
+    const double x2 = xs[i2];
+    const double f1 = fs[i1];
+    const double f2 = fs[i2];
     const double t = (x - x1) / (x2 - x1);
     return lerp(f1, f2, t);
 }
