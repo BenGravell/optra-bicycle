@@ -7,7 +7,6 @@ set(CMAKE_CXX_STANDARD 20)
 # Find packages
 find_package(glog REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(indicators REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(raylib REQUIRED)
 
@@ -29,7 +28,6 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE 
         glog::glog 
         Eigen3::Eigen 
-        indicators::indicators
         nlohmann_json::nlohmann_json
         raylib
 )
