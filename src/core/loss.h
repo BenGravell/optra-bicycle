@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "core/obstacle.h"
-#include "core/smooth_func_utils.h"
+#include "core/smooth_functions.h"
 #include "core/space.h"
 #include "core/trajectory.h"
 #include "core/util.h"
