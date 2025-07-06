@@ -3,7 +3,8 @@
 #include <Eigen/Dense>
 #include <cstddef>
 #include <vector>
-#include "space.h"
+
+#include "core/space.h"
 
 // Length of trajectory for steering function, i.e. for one node.
 static constexpr uint64_t traj_length_steer = 10;

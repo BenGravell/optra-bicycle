@@ -12,25 +12,23 @@
 #include <string>
 #include <unordered_map>
 
-#include "dynamics.h"
-#include "interp.h"
-#include "problem.h"
-#include "rollout.h"
-#include "rrt.h"
-#include "solver.h"
-#include "solver_settings.h"
-#include "space.h"
-#include "util.h"
-
-#include "cmaps/viridis.h"
-#include "cmaps/magma.h"
+#include "cmaps/crest_r.h"
+#include "cmaps/flare_r.h"
 #include "cmaps/inferno.h"
-#include "cmaps/turbo.h"
+#include "cmaps/magma.h"
 #include "cmaps/mako.h"
 #include "cmaps/rocket.h"
-#include "cmaps/flare_r.h"
-#include "cmaps/crest_r.h"
-
+#include "cmaps/turbo.h"
+#include "cmaps/viridis.h"
+#include "core/dynamics.h"
+#include "core/interp.h"
+#include "core/problem.h"
+#include "core/rollout.h"
+#include "core/space.h"
+#include "core/util.h"
+#include "ilqr/solver.h"
+#include "ilqr/solver_settings.h"
+#include "rrt/rrt.h"
 
 float Slider(Rectangle bounds, float value, float minValue, float maxValue, const char* label) {
     // Draw the slider background
@@ -98,7 +96,6 @@ Color CoolColormap(const float x) {
 
     return Color{rgb[0], rgb[1], rgb[2], 255};
 }
-
 
 // Helper macro to convert hex to Color (expects 0xRRGGBBAA)
 #define HEX2COLOR(hex)                             \
@@ -181,7 +178,6 @@ struct PlannerOutputs {
     int tree_exp_clock_time;  // ms
     int traj_opt_clock_time;  // ms
 };
-
 
 PlannerOutputs planZeroInit(const StateVector& start, const StateVector& goal) {
     // ---- RRT
@@ -278,7 +274,7 @@ PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std
     // static constexpr int num_nodes_cool = 0.8 * num_nodes;
     // static constexpr int num_nodes_warm = 0.2 * num_nodes;
     // const int num_nodes_this_tree = warm ? num_nodes_warm : num_nodes_cool;
-    
+
     const int num_nodes_this_tree = num_nodes;
 
     tree.grow(start, goal, num_nodes_this_tree, warm);
@@ -404,7 +400,6 @@ void drawTree(const Tree& tree, const bool warm) {
         // const float line_width = (node->is_warm) ? 2 : 1;
         // const auto color = (node->is_warm) ? COLOR_WARM_START : COLOR_TREE;
 
-    
         // Color by time index.
         const float line_width = 1.0;
         const float c = static_cast<float>(node->time_ix) / static_cast<float>(time_ix_max);
@@ -439,7 +434,6 @@ void DrawGoalTriangle(const Vector2 center, const float radius, const Color colo
 
     DrawTriangle(vertex_top, vertex_left, vertex_right, color);
 }
-
 
 void DrawStar(const Vector2 center, const float radius, const Color color) {
     // Number of spikes. Must be >= 2.
@@ -861,7 +855,6 @@ int main() {
             }
         }
 
-
         // ---- Lon accel vs Time plot
         {
             const int plotWidth = 300;
@@ -877,7 +870,7 @@ int main() {
             const Trajectory<traj_length_opt>& traj = planner_outputs.solution.traj;
             const double total_time = planner_outputs.solution.total_time;
             const double dt = total_time / traj.length;
-            
+
             // Plot the data
 
             // Post-opt traj
@@ -913,7 +906,7 @@ int main() {
             const Trajectory<traj_length_opt>& traj = planner_outputs.solution.traj;
             const double total_time = planner_outputs.solution.total_time;
             const double dt = total_time / traj.length;
-            
+
             // Plot the data
 
             // Post-opt traj
@@ -938,7 +931,6 @@ int main() {
             }
         }
 
-        
         // ---- Curvature vs Time plot
         {
             const int plotWidth = 300;
@@ -954,7 +946,6 @@ int main() {
             const Trajectory<traj_length_opt>& traj = planner_outputs.solution.traj;
             const double total_time = planner_outputs.solution.total_time;
             const double dt = total_time / traj.length;
-            
 
             // Plot the data
 
@@ -975,7 +966,6 @@ int main() {
                 }
             }
         }
-
 
         const float draw_elm_clock_stop = GetTime();
         draw_elm_clock_time_next = static_cast<int>(std::ceil(1e6 * (draw_elm_clock_stop - draw_elm_clock_start)));

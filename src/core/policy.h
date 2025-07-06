@@ -4,8 +4,8 @@
 #include <cstddef>
 #include <vector>
 
-#include "space.h"
-#include "trajectory.h"
+#include "core/space.h"
+#include "core/trajectory.h"
 
 template <int N>
 using FeedbackGainSequence = std::array<ActionStateMatrix, N>;

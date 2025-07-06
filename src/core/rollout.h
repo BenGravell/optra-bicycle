@@ -3,11 +3,11 @@
 #include <Eigen/Dense>
 #include <vector>
 
-#include "constants.h"
-#include "dynamics.h"
-#include "policy.h"
-#include "space.h"
-#include "trajectory.h"
+#include "core/constants.h"
+#include "core/dynamics.h"
+#include "core/policy.h"
+#include "core/space.h"
+#include "core/trajectory.h"
 
 template <int N>
 inline void rolloutOpenLoop(const ActionSequence<N>& action_sequence, const StateVector& initial_state, const Dynamics& dynamics, Trajectory<N>& traj) {
@@ -39,7 +39,7 @@ inline void rolloutOpenLoopConstrained(const ActionSequence<N>& action_sequence,
 
         // Minimum squared speed to prevent division by zero.
         static constexpr double v_sq_min = 1e-6;
-        
+
         // Maximum curvature limit due to lateral acceleration limit.
         const double a_curvature_max = accel_lat_max / std::max(v_sq, v_sq_min);
 

@@ -6,12 +6,12 @@
 #include <stdexcept>
 #include <vector>
 
-#include "loss.h"
-#include "policy.h"
-#include "problem.h"
-#include "solver_settings.h"
-#include "space.h"
-#include "trajectory.h"
+#include "core/loss.h"
+#include "core/policy.h"
+#include "core/problem.h"
+#include "core/space.h"
+#include "core/trajectory.h"
+#include "ilqr/solver_settings.h"
 
 // Struct representing an expected cost change.
 struct ExpectedCostChange {

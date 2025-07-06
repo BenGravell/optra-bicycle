@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-#include "constants.h"
+#include "core/constants.h"
 
 // Newton's method was used to find this constant, which makes
 // smoothBounded(1.0, 1.0) == 1.0

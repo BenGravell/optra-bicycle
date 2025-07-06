@@ -8,13 +8,13 @@
 #include <string>
 #include <vector>
 
-#include "backward_pass.h"
-#include "dynamics.h"
-#include "loss.h"
-#include "policy.h"
-#include "problem.h"
-#include "solver_settings.h"
-#include "trajectory.h"
+#include "core/dynamics.h"
+#include "core/loss.h"
+#include "core/policy.h"
+#include "core/problem.h"
+#include "core/trajectory.h"
+#include "ilqr/backward_pass.h"
+#include "ilqr/solver_settings.h"
 
 enum class SolveStatus : uint8_t {
     kInProgress = 0,

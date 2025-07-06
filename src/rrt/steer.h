@@ -5,14 +5,12 @@
 #include <stdexcept>
 #include <vector>
 
-#include "solver.h"
-#include "space.h"
-#include "trajectory.h"
-#include "util.h"
+#include "core/space.h"
+#include "core/trajectory.h"
+#include "core/util.h"
 
 // TODO move to constants.h or make function arg.
 static constexpr double V_MIN = 0.01;
-
 
 struct BoundaryCondition {
     const double x;

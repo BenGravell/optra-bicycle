@@ -7,11 +7,11 @@
 #include <tuple>
 #include <vector>
 
-#include "obstacle.h"
-#include "smooth_func_utils.h"
-#include "space.h"
-#include "trajectory.h"
-#include "util.h"
+#include "core/obstacle.h"
+#include "core/smooth_func_utils.h"
+#include "core/space.h"
+#include "core/trajectory.h"
+#include "core/util.h"
 
 // TODO put in loss config struct
 // static constexpr double boundary_loss_weight = 10.0;
@@ -116,13 +116,11 @@ inline double clearanceLossHess(const double c, const double c_free) {
     return p <= 0.0 ? 0.0 : 12 * (square(p) / quart(c_free));
 }
 
-
 // // Loss for going outside the environment boundary.
 // inline double boundaryLoss(const Box& box, const StateVector& state) {
 //     const double clearance = box.clearance(state);
 //     return boundary_loss_weight * clearanceLoss(clearance, clearance_free);
 // }
-
 
 inline double obstacleLoss(const Obstacle& obstacle, const StateVector& state) {
     const double clearance = obstacle.clearance(state);

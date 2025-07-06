@@ -1,6 +1,6 @@
 #pragma once
 
-#include "constants.h"
+#include "core/constants.h"
 
 template <typename T>
 T square(const T x) {

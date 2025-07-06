@@ -1,9 +1,8 @@
 #pragma once
 
-#include "space.h"
-#include "trajectory.h"
-#include "util.h"
-
+#include "core/space.h"
+#include "core/trajectory.h"
+#include "core/util.h"
 
 // TODO for boundaryLoss
 // struct Box {
@@ -23,13 +22,10 @@
 //     }
 // };
 
-
-
 struct Position {
     const double x;
     const double y;
 };
-
 
 inline Eigen::Vector2d positionDelta(const Position& position, const StateVector& state) {
     return state.head(2) - Eigen::Vector2d(position.x, position.y);
@@ -65,7 +61,6 @@ struct Obstacle {
         return false;
     }
 };
-
 
 inline bool obstaclesCollidesWith(std::vector<Obstacle> obstacles, const StateVector& state) {
     for (const auto& obstacle : obstacles) {

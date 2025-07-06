@@ -5,10 +5,10 @@
 #include <memory>
 #include <vector>
 
-#include "constants.h"
-#include "dynamics.h"
-#include "loss.h"
-#include "trajectory.h"
+#include "core/constants.h"
+#include "core/dynamics.h"
+#include "core/loss.h"
+#include "core/trajectory.h"
 
 // Struct for a trajectory optimization problem
 struct Problem {
@@ -39,8 +39,8 @@ inline Problem makeProblem(const StateVector initial_state, const StateVector te
     const SoftParams soft_params{accel_lon_scale, accel_lat_scale, curvature_scale, accel_lon_tol, accel_lat_tol, curvature_tol};
 
     // Vehicle limits
-    static constexpr double speed_max = 40.0;      // ~90 mph
-    static constexpr double speed_min = -10.0;     // ~22 mph
+    static constexpr double speed_max = 40.0;   // ~90 mph
+    static constexpr double speed_min = -10.0;  // ~22 mph
 
     const VehicleLimits vehicle_limits{speed_max,
                                        speed_min,

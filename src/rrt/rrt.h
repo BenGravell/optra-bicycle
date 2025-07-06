@@ -13,13 +13,13 @@
 #include <string>
 #include <vector>
 
-#include "constants.h"
-#include "obstacle.h"
-#include "util.h"
-#include "solver.h"
-#include "space.h"
-#include "steer.h"
-#include "trajectory.h"
+#include "core/constants.h"
+#include "core/obstacle.h"
+#include "core/space.h"
+#include "core/trajectory.h"
+#include "core/util.h"
+#include "ilqr/solver.h"
+#include "rrt/steer.h"
 
 // Define a global random number generator
 std::random_device rd;
