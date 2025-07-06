@@ -16,10 +16,10 @@ struct Dynamics {
 
     StateVector forward(const StateVector& state, const ActionVector& action) const {
         // Extract states and actions.
-        const double yaw = state[2];
-        const double speed = state[3];
-        const double accel = action[0];
-        const double curvature = action[1];
+        const double yaw = state(2);
+        const double speed = state(3);
+        const double accel = action(0);
+        const double curvature = action(1);
         // Assemble output.
         return state + delta_time * StateVector{
                                         speed * std::cos(yaw),
@@ -30,10 +30,10 @@ struct Dynamics {
 
     Jacobian jacobian(const StateVector& state, const ActionVector& action) const {
         // Extract states and actions.
-        const double yaw = state[2];
-        const double speed = state[3];
-        const double accel = action[0];
-        const double curvature = action[1];
+        const double yaw = state(2);
+        const double speed = state(3);
+        const double accel = action(0);
+        const double curvature = action(1);
 
         // Compute intermediate quantities.
         const double dt_sin_yaw = delta_time * std::sin(yaw);

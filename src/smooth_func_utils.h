@@ -12,11 +12,12 @@ static constexpr double SB_SCALE2 = SB_SCALE * SB_SCALE;
 // ---- smoothAbs
 
 // Smooth absolute value function.
-// The approximation is close to std::abs() outside the neighborhood [-a, a].
+// The approximation is close to std::abs()   outside the neighborhood [-a, a],
+//                  and close to (x^2) / (2*a) inside the neighborhood [-a, a].
 template <typename T>
 T smoothAbs(T x, T a) {
     // Use std::log1p() for numerical stability.
-    // Same as a * log(exp(a_inv * x) + exp(-a_inv * x)).
+    // Same as a * (log(exp(a_inv * x) + exp(-a_inv * x)) - log(2))
     const T a_inv = 1.0 / a;
     const T abs_x_over_a = a_inv * std::abs(x);
     return a * (abs_x_over_a + std::log1p(std::exp(-2.0 * abs_x_over_a)) - LOG2);

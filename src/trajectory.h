@@ -3,12 +3,14 @@
 #include <Eigen/Dense>
 #include <cstddef>
 #include <vector>
-
 #include "space.h"
 
+// Length of trajectory for steering function, i.e. for one node.
+static constexpr uint64_t traj_length_steer = 10;
 
-static constexpr uint64_t traj_length_steer = 20;
+// Length of trajectory for trajectory optimization, i.e. the entire trajectory.
 static constexpr uint64_t traj_length_opt = 100;
+
 static_assert((traj_length_opt % traj_length_steer) == 0, "traj_length_opt must be a multiple of traj_length_steer");
 
 template <int N>

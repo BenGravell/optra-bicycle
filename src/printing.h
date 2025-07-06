@@ -18,5 +18,5 @@ std::string val2str(const T x) {
 }
 
 std::string state2str(const StateVector state) {
-    return val2str(state[0]) + "_" + val2str(state[1]) + "_" + val2str(rad2deg(state[2])) + "_" + val2str(state[3]);
+    return val2str(state(0)) + "_" + val2str(state(1)) + "_" + val2str(rad2deg(state(2))) + "_" + val2str(state(3));
 }

@@ -7,16 +7,45 @@
 #include <tuple>
 #include <vector>
 
+#include "obstacle.h"
 #include "smooth_func_utils.h"
 #include "space.h"
 #include "trajectory.h"
 #include "util.h"
 
-
 // TODO put in loss config struct
-static constexpr double obstacle_loss_weight = 4.0;
+// static constexpr double boundary_loss_weight = 10.0;
+static constexpr double obstacle_loss_weight = 10.0;
 
+// ---- SCENARIO: Bubbles.
+std::vector<Obstacle> obstacles = {
+    {{7.0, 0.0}, 1.5},
+    {{10.0, 0.5}, 1.0},
+    {{14.0, 1.0}, 1.2},
+    {{16.0, -1.0}, 1.2}};
 
+// // ---- SCENARIO: Parking space.
+// static constexpr double gap = 3.0;
+// static constexpr double gap_half = 0.5 * gap;
+// static constexpr double ob_r = 0.5;
+// static constexpr double ob_spacing_factor = 1.3;
+// std::vector<Obstacle> obstacles = {
+//     {{10.0 - gap_half - ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{10.0 - gap_half - ob_r, 0 * ob_spacing_factor * ob_r}, ob_r},
+//     {{10.0 - gap_half - ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{10.0 - gap_half - ob_r + ob_spacing_factor * ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{10.0 - gap_half - ob_r + ob_spacing_factor * ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{10.0 - gap_half - ob_r + 2 * ob_spacing_factor * ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{10.0 - gap_half - ob_r + 2 * ob_spacing_factor * ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{10.0 + gap_half + ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{10.0 + gap_half + ob_r, 0 * ob_spacing_factor * ob_r}, ob_r},
+//     {{10.0 + gap_half + ob_r, -1 * ob_spacing_factor * ob_r}, ob_r}};
+
+// Amount of clearance distance before loss starts kicking in.
+// clearance > clearance_free -> loss = 0
+// clearance < clearance_free -> 0 < loss < 1
+// clearance = 0              -> loss = 1
+static constexpr double clearance_free = 0.05;
 
 struct VehicleLimits {
     const double speed_max;
@@ -30,6 +59,9 @@ struct SoftParams {
     const double accel_lon_scale;
     const double accel_lat_scale;
     const double curvature_scale;
+    const double accel_lon_tol;
+    const double accel_lat_tol;
+    const double curvature_tol;
 };
 
 struct VehicleLimitsParams {
@@ -68,8 +100,6 @@ struct StateActionValueQ {
     ActionActionMatrix uu;
 };
 
-
-
 // TODO move this somewhere better
 inline double clearanceLoss(const double c, const double c_free) {
     const double p = c_free - c;
@@ -87,8 +117,62 @@ inline double clearanceLossHess(const double c, const double c_free) {
 }
 
 
+// // Loss for going outside the environment boundary.
+// inline double boundaryLoss(const Box& box, const StateVector& state) {
+//     const double clearance = box.clearance(state);
+//     return boundary_loss_weight * clearanceLoss(clearance, clearance_free);
+// }
 
 
+inline double obstacleLoss(const Obstacle& obstacle, const StateVector& state) {
+    const double clearance = obstacle.clearance(state);
+    return obstacle_loss_weight * clearanceLoss(clearance, clearance_free);
+}
+
+struct GradAndHess2d {
+    const Eigen::Vector2d grad;
+    const Eigen::Matrix2d hess;
+};
+
+inline GradAndHess2d obstacleLossGradAndHess(const Obstacle& obstacle, const StateVector& state) {
+    Eigen::Vector2d grad = Eigen::Vector2d::Zero();
+    Eigen::Matrix2d hess = Eigen::Matrix2d::Zero();
+
+    const Eigen::Vector2d offset = positionDelta(obstacle.center, state);
+    double distance = offset.norm();
+    const double clearance = distance - obstacle.radius;
+    if (clearance < clearance_free) {
+        // Clamp distance to avoid division by zero
+        distance = std::max(distance, 1e-3);
+
+        const Eigen::Vector2d offset_normalized = offset / distance;
+        const double cg = clearanceLossGrad(clearance, clearance_free);
+        const double ch = clearanceLossHess(clearance, clearance_free);
+        const double cg_over_d = cg / distance;
+        grad = (obstacle_loss_weight * cg) * offset_normalized;
+        hess = obstacle_loss_weight * ((ch - cg_over_d) * (offset_normalized * offset_normalized.transpose()) + cg_over_d * Eigen::Matrix2d::Identity());
+    }
+    return {grad, hess};
+}
+
+inline double multiObstacleLoss(const std::vector<Obstacle>& obstacles, const StateVector& state) {
+    double loss = 0.0;
+    for (const Obstacle& obstacle : obstacles) {
+        loss += obstacleLoss(obstacle, state);
+    }
+    return loss;
+}
+
+inline GradAndHess2d multiObstacleLossGradAndHess(const std::vector<Obstacle>& obstacles, const StateVector& state) {
+    Eigen::Vector2d grad = Eigen::Vector2d::Zero();
+    Eigen::Matrix2d hess = Eigen::Matrix2d::Zero();
+    for (const Obstacle& obstacle : obstacles) {
+        const auto gradAndHessThisObs = obstacleLossGradAndHess(obstacle, state);
+        grad += gradAndHessThisObs.grad;
+        hess += gradAndHessThisObs.hess;
+    }
+    return {grad, hess};
+}
 
 struct Loss {
     // ---- Attributes
@@ -105,16 +189,19 @@ struct Loss {
 
     double value(const StateVector& state, const ActionVector& action) const {
         // Extract
-        const double speed = state[3];
-        const double accel_lon = action[0];
-        const double curvature = action[1];
+        const double speed = state(3);
+        const double accel_lon = action(0);
+        const double curvature = action(1);
         const double accel_lat = square(speed) * curvature;
 
         // Compute components
         // Soft terms
-        const double soft_accel_lon_loss = soft_params.accel_lon_scale * square(accel_lon);
-        const double soft_accel_lat_loss = soft_params.accel_lat_scale * square(accel_lat);
-        const double soft_curvature_loss = soft_params.curvature_scale * square(curvature);
+        // const double soft_accel_lon_loss = soft_params.accel_lon_scale * square(accel_lon);
+        // const double soft_accel_lat_loss = soft_params.accel_lat_scale * square(accel_lat);
+        // const double soft_curvature_loss = soft_params.curvature_scale * square(curvature);
+        const double soft_accel_lon_loss = soft_params.accel_lon_scale * smoothAbs(accel_lon, soft_params.accel_lon_tol);
+        const double soft_accel_lat_loss = soft_params.accel_lat_scale * smoothAbs(accel_lat, soft_params.accel_lat_tol);
+        const double soft_curvature_loss = soft_params.curvature_scale * smoothAbs(curvature, soft_params.curvature_tol);
         const double soft_loss = soft_accel_lon_loss + soft_accel_lat_loss + soft_curvature_loss;
         // Hard terms
         const double hard_speed_loss = vehicle_limits_params.speed_lim_scale * smoothBoundedDeadzone(speed, vehicle_limits_params.speed_free_pos, vehicle_limits.speed_max, vehicle_limits_params.speed_free_neg, vehicle_limits.speed_min);
@@ -124,21 +211,16 @@ struct Loss {
         const double hard_loss = hard_speed_loss + hard_accel_lon_loss + hard_accel_lat_loss + hard_curvature_loss;
 
         // Obstacles
-        // TODO generalize
-        const Eigen::Vector2d obstacle_center{10.0, 0.0};
-        static constexpr double obstacle_radius = 1.0;
-        const double clearance = (state.head(2) - obstacle_center).norm() - obstacle_radius;
-        static constexpr double clearance_free = 0.1;
-        const double obstacle_loss = obstacle_loss_weight * clearanceLoss(clearance, clearance_free);
+        const double obstacle_loss = multiObstacleLoss(obstacles, state);
 
         return inverse_traj_length * (soft_loss + hard_loss + obstacle_loss);
     }
 
     StateActionValueQ gradientAndHessian(const StateVector& state, const ActionVector& action) const {
         // ---- Extract states and actions
-        const double speed = state[3];
-        const double accel_lon = action[0];
-        const double curvature = action[1];
+        const double speed = state(3);
+        const double accel_lon = action(0);
+        const double curvature = action(1);
 
         // ---- Intermediate quantities
         const double speed2 = speed * speed;
@@ -147,35 +229,24 @@ struct Loss {
         const double accel_lat = speed2 * curvature;
         const double curvature2 = curvature * curvature;
 
-
-
         // ---- Obstacle loss
-        // TODO generalize
-        const Eigen::Vector2d obstacle_center{10.0, 0.0};
-        static constexpr double obstacle_radius = 1.0;
-        const Eigen::Vector2d offset = state.head(2) - obstacle_center;
-        const double distance = std::max(offset.norm(), 1e-6);
-        const double clearance = distance - obstacle_radius;
-        static constexpr double clearance_free = 0.2;
+        const GradAndHess2d obstacle_grad_and_hess = multiObstacleLossGradAndHess(obstacles, state);
+        const auto obstacle_grad = obstacle_grad_and_hess.grad;
+        const auto obstacle_hess = obstacle_grad_and_hess.hess;
 
-        Eigen::Vector2d obstacle_grad_xy = Eigen::Vector2d::Zero();
-        Eigen::Matrix2d obstacle_hess_xy = Eigen::Matrix2d::Zero();
-        if (clearance < clearance_free) {
-            const Eigen::Vector2d offset_normalized = offset / distance;
-            const double cg = clearanceLossGrad(clearance, clearance_free);
-            const double ch = clearanceLossHess(clearance, clearance_free);
-            const double cg_over_d = cg / distance;
-            obstacle_grad_xy = (obstacle_loss_weight * cg) * offset_normalized;
-            obstacle_hess_xy = obstacle_loss_weight * ((ch - cg_over_d) * (offset_normalized * offset_normalized.transpose()) + cg_over_d * Eigen::Matrix2d::Identity());
-        }
-
+        const double soft_accel_lat_loss = soft_params.accel_lat_scale * smoothAbs(accel_lat, soft_params.accel_lat_tol);
+        const double soft_curvature_loss = soft_params.curvature_scale * smoothAbs(curvature, soft_params.curvature_tol);
 
         // ---- Gradient
         // Compute components
         // Soft terms
-        const double soft_speed_grad = 4.0 * soft_params.accel_lat_scale * speed3 * curvature2;
-        const double soft_accel_lon_grad = 2.0 * soft_params.accel_lon_scale * accel_lon;
-        const double soft_curvature_grad = 2.0 * curvature * (soft_params.accel_lat_scale * speed4 + soft_params.curvature_scale);
+        const double soft_accel_lat_grad = soft_params.accel_lat_scale * smoothAbsGrad(accel_lat, soft_params.accel_lat_tol);
+        const double soft_speed_grad = soft_accel_lat_grad * (2 * speed * curvature);
+        const double soft_accel_lon_grad = soft_params.accel_lon_scale * smoothAbsGrad(accel_lon, soft_params.accel_lon_tol);
+        const double soft_curvature_grad_from_curvature = soft_params.curvature_scale * smoothAbsGrad(curvature, soft_params.curvature_tol);
+        const double soft_curvature_grad_from_accel_lat = soft_accel_lat_grad * speed2;
+        const double soft_curvature_grad = soft_curvature_grad_from_curvature + soft_curvature_grad_from_accel_lat;
+
         // Hard terms
         const double hard_speed_grad_from_speed_lim = vehicle_limits_params.speed_lim_scale * smoothBoundedDeadzoneGrad(speed, vehicle_limits_params.speed_free_pos, vehicle_limits.speed_max, vehicle_limits_params.speed_free_neg, vehicle_limits.speed_min);
         const double hard_accel_lon_grad = vehicle_limits_params.accel_lon_max_scale * smoothBoundedDeadzoneSymmetricGrad(accel_lon, vehicle_limits_params.accel_lon_free, vehicle_limits.accel_lon_max);
@@ -192,20 +263,26 @@ struct Loss {
         const double speed_grad = soft_speed_grad + hard_speed_grad;
         const double accel_lon_grad = soft_accel_lon_grad + hard_accel_lon_grad;
         const double curvature_grad = soft_curvature_grad + hard_curvature_grad;
-        
 
         // Assemble
-        const StateVector lx{inverse_traj_length * obstacle_grad_xy(0), inverse_traj_length * obstacle_grad_xy(1), 0.0, inverse_traj_length * speed_grad};
+        const StateVector lx{inverse_traj_length * obstacle_grad(0), inverse_traj_length * obstacle_grad(1), 0.0, inverse_traj_length * speed_grad};
         const ActionVector lu{inverse_traj_length * accel_lon_grad, inverse_traj_length * curvature_grad};
-        
 
         // ---- Hessian
         // Compute components
         // Soft terms
-        const double soft_vv = 12.0 * soft_params.accel_lat_scale * speed2 * curvature2;
-        const double soft_vk = 8.0 * soft_params.accel_lat_scale * speed3 * curvature;
-        const double soft_aa = 2.0 * soft_params.accel_lon_scale;
-        const double soft_kk = 2.0 * (soft_params.accel_lat_scale * speed4 + soft_params.curvature_scale);
+        // const double soft_vv = 12.0 * soft_params.accel_lat_scale * speed2 * curvature2;
+        // const double soft_vk = 8.0 * soft_params.accel_lat_scale * speed3 * curvature;
+        // const double soft_aa = 2.0 * soft_params.accel_lon_scale;
+        // const double soft_kk = 2.0 * (soft_params.accel_lat_scale * speed4 + soft_params.curvature_scale);
+
+        const double soft_accel_lat_hess = soft_params.accel_lat_scale * smoothAbsHess(accel_lat, soft_params.accel_lat_tol);
+        const double soft_vv = soft_accel_lat_hess * (2 * speed2 * curvature2) + soft_accel_lat_grad * (2 * curvature);
+        const double soft_vk = soft_accel_lat_hess * (speed2 * (2 * speed * curvature)) + soft_accel_lat_grad * (2 * speed);
+        const double soft_aa = soft_params.accel_lon_scale * smoothAbsHess(accel_lon, soft_params.accel_lon_tol);
+        const double soft_kk_from_curvature = soft_params.curvature_scale * smoothAbsHess(curvature, soft_params.curvature_tol);
+        const double soft_kk_from_accel_lat = soft_params.accel_lat_scale * smoothAbsHess(accel_lat, soft_params.accel_lat_tol) * speed4;
+        const double soft_kk = soft_kk_from_curvature + soft_kk_from_accel_lat;
 
         // Hard terms from simple bounds.
         const double hard_vv_from_speed_lim = vehicle_limits_params.speed_lim_scale * smoothBoundedDeadzoneHess(speed, vehicle_limits_params.speed_free_pos, vehicle_limits.speed_max, vehicle_limits_params.speed_free_neg, vehicle_limits.speed_min);
@@ -231,11 +308,10 @@ struct Loss {
         const double aa = soft_aa + hard_aa;
         const double kk = soft_kk + hard_kk;
 
-
         // Assemble
         const StateStateMatrix lxx{
-            {inverse_traj_length * obstacle_hess_xy(0, 0), inverse_traj_length * obstacle_hess_xy(0, 1), 0.0, 0.0},
-            {inverse_traj_length * obstacle_hess_xy(1, 0), inverse_traj_length * obstacle_hess_xy(1, 1), 0.0, 0.0},
+            {inverse_traj_length * obstacle_hess(0, 0), inverse_traj_length * obstacle_hess(0, 1), 0.0, 0.0},
+            {inverse_traj_length * obstacle_hess(1, 0), inverse_traj_length * obstacle_hess(1, 1), 0.0, 0.0},
             {0.0, 0.0, 0.0, 0.0},
             {0.0, 0.0, 0.0, inverse_traj_length * vv},
         };
@@ -256,10 +332,10 @@ struct Loss {
     double terminalValue(const StateVector& state) const {
         // Deltas
         const StateVector delta = state - terminal_state_target;
-        const double dx = delta[0];
-        const double dy = delta[1];
-        const double dyaw = delta[2];
-        const double dv = delta[3];
+        const double dx = delta(0);
+        const double dy = delta(1);
+        const double dyaw = delta(2);
+        const double dv = delta(3);
 
         // Compute components
         const double xy_loss = terminal_state_params.xy_scale * (smoothAbs(dx, terminal_state_params.xy_tol) + smoothAbs(dy, terminal_state_params.xy_tol));
@@ -273,13 +349,12 @@ struct Loss {
     StateValueV terminalGradientAndHessian(const StateVector& state) const {
         // TODO include obstacle loss
 
-
         // ---- Deltas
         const StateVector delta = state - terminal_state_target;
-        const double dx = delta[0];
-        const double dy = delta[1];
-        const double dyaw = delta[2];
-        const double dv = delta[3];
+        const double dx = delta(0);
+        const double dy = delta(1);
+        const double dyaw = delta(2);
+        const double dv = delta(3);
 
         // ---- Gradient
         const double x_grad = terminal_state_params.xy_scale * smoothAbsGrad(dx, terminal_state_params.xy_tol);

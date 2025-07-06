@@ -29,33 +29,35 @@ inline Problem makeProblem(const StateVector initial_state, const StateVector te
     // Define the loss function.
 
     // Soft terms
-    const double accel_lon_scale = 0.005;
-    const double accel_lat_scale = 0.005;
-    const double curvature_scale = 0.001;
-    const SoftParams soft_params{accel_lon_scale, accel_lat_scale, curvature_scale};
+    static constexpr double soft_scale = 0.1;
+    static constexpr double accel_lon_scale = 5.0 * soft_scale;
+    static constexpr double accel_lat_scale = 5.0 * soft_scale;
+    static constexpr double curvature_scale = 1.0 * soft_scale;
+    static constexpr double accel_lon_tol = 0.5;
+    static constexpr double accel_lat_tol = 0.5;
+    static constexpr double curvature_tol = 0.05;
+    const SoftParams soft_params{accel_lon_scale, accel_lat_scale, curvature_scale, accel_lon_tol, accel_lat_tol, curvature_tol};
 
     // Vehicle limits
-    const double speed_max = 40.0;      // ~90 mph
-    const double speed_min = -10.0;     // ~22 mph
-    const double accel_lon_max = 3.0;   // 0.3g
-    const double accel_lat_max = 6.0;   // 0.6g
-    const double curvature_max = 0.25;  // ~35 degrees steering angle @ 2.73 meter body length
+    static constexpr double speed_max = 40.0;      // ~90 mph
+    static constexpr double speed_min = -10.0;     // ~22 mph
+
     const VehicleLimits vehicle_limits{speed_max,
                                        speed_min,
                                        accel_lon_max,
                                        accel_lat_max,
                                        curvature_max};
 
-    const double speed_lim_scale = 0.01;
-    const double accel_lon_max_scale = 0.01;
-    const double accel_lat_max_scale = 0.01;
-    const double curvature_max_scale = 0.01;
+    static constexpr double speed_lim_scale = 0.01;
+    static constexpr double accel_lon_max_scale = 0.01;
+    static constexpr double accel_lat_max_scale = 0.01;
+    static constexpr double curvature_max_scale = 0.01;
 
-    const double speed_free_pos = 0.99 * speed_max;
-    const double speed_free_neg = 0.99 * speed_min;
-    const double accel_lon_free = 0.99 * accel_lon_max;
-    const double accel_lat_free = 0.99 * accel_lat_max;
-    const double curvature_free = 0.99 * curvature_max;
+    static constexpr double speed_free_pos = 0.99 * speed_max;
+    static constexpr double speed_free_neg = 0.99 * speed_min;
+    static constexpr double accel_lon_free = 0.99 * accel_lon_max;
+    static constexpr double accel_lat_free = 0.99 * accel_lat_max;
+    static constexpr double curvature_free = 0.99 * curvature_max;
 
     const VehicleLimitsParams vehicle_limits_params{speed_lim_scale,
                                                     speed_free_pos,
@@ -68,12 +70,12 @@ inline Problem makeProblem(const StateVector initial_state, const StateVector te
                                                     curvature_free};
 
     // Terminal state
-    const double terminal_xy_scale = 1.0;        // 1 m per m
-    const double terminal_xy_tol = 0.01;         // 1 cm
-    const double terminal_yaw_scale = 5.0 / PI;  // 5 m per 180 deg
-    const double terminal_yaw_tol = 0.02;        // ~1 degree
-    const double terminal_speed_scale = 0.5;     // 1 m per 0.5 m/s
-    const double terminal_speed_tol = 0.01;      // 1 cm/s
+    static constexpr double terminal_xy_scale = 1.0;        // 1 m per m
+    static constexpr double terminal_xy_tol = 0.01;         // 1 cm
+    static constexpr double terminal_yaw_scale = 5.0 / PI;  // 5 m per 180 deg
+    static constexpr double terminal_yaw_tol = 0.02;        // ~1 degree
+    static constexpr double terminal_speed_scale = 0.5;     // 1 m per 0.5 m/s
+    static constexpr double terminal_speed_tol = 0.01;      // 1 cm/s
 
     const TerminalStateParams terminal_state_params{terminal_xy_scale,
                                                     terminal_xy_tol,

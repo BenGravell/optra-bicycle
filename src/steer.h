@@ -5,23 +5,32 @@
 #include <stdexcept>
 #include <vector>
 
-#include "util.h"
 #include "solver.h"
 #include "space.h"
 #include "trajectory.h"
+#include "util.h"
+
+// TODO move to constants.h or make function arg.
+static constexpr double V_MIN = 0.01;
+
 
 struct BoundaryCondition {
-    const double x0;
-    const double v0;
-    const double xf;
-    const double vf;
+    const double x;
+    const double v;
+};
+
+struct BoundaryConditionsStartEnd {
+    const BoundaryCondition start;
+    const BoundaryCondition end;
 };
 
 struct BoundaryConditionsXY {
-    const BoundaryCondition x;
-    const BoundaryCondition y;
+    const BoundaryConditionsStartEnd x;
+    const BoundaryConditionsStartEnd y;
 };
 
+// Coefficients defining a cubic polynomial.
+// a3 * x^3 + a2 * x^2 + a1 * x + a0
 struct CubicCoeffs {
     const double a3;
     const double a2;
@@ -29,48 +38,88 @@ struct CubicCoeffs {
     const double a0;
 };
 
-// Cubic polynomial coefficients from boundary conditions.
-inline CubicCoeffs bc2coeffs(const BoundaryCondition& bc, const double T) {
-    const double T2 = T * T;
-    const double T3 = T2 * T;
+// Convert boundary conditions to cubic polynomial coefficients.
+// t must be > 0
+inline CubicCoeffs bc2coeffs(const BoundaryConditionsStartEnd& bc, const double t) {
+    const double t2 = square(t);
+    const double t3 = t2 * t;
 
-    const double dx = bc.xf - bc.x0;
-    const double vsum = bc.v0 + bc.vf;
+    const double dx = bc.end.x - bc.start.x;
+    const double v_sum = bc.start.v + bc.end.v;
 
-    const double a0 = bc.x0;
-    const double a1 = bc.v0;
-    const double a2 = 3.0 * dx / T2 - (bc.v0 + vsum) / T;
-    const double a3 = (T * vsum - 2.0 * dx) / T3;
+    const double a0 = bc.start.x;
+    const double a1 = bc.start.v;
+    const double a2 = (3.0 * dx) / t2 - (bc.start.v + v_sum) / t;
+    const double a3 = (t * v_sum - 2.0 * dx) / t3;
 
     return {a3, a2, a1, a0};
 }
 
-// Convert full state (x, y, yaw, v) to boundary conditions in x and y.
+// Convert full state (x, y, yaw, v) start and goal states to boundary conditions in x and y.
 inline BoundaryConditionsXY states2bcs(const StateVector& start, const StateVector& goal) {
-    const double x0 = start[0];
-    const double y0 = start[1];
-    const double yaw_0 = start[2];
-    const double v0 = start[3];
+    const double x0 = start(0);
+    const double y0 = start(1);
+    const double yaw_0 = start(2);
+    const double v0 = start(3);
 
-    const double xf = goal[0];
-    const double yf = goal[1];
-    const double yaw_f = goal[2];
-    const double vf = goal[3];
+    const double x1 = goal(0);
+    const double y1 = goal(1);
+    const double yaw_1 = goal(2);
+    const double v1 = goal(3);
 
     const double vx0 = v0 * std::cos(yaw_0);
     const double vy0 = v0 * std::sin(yaw_0);
 
-    const double vxf = vf * std::cos(yaw_f);
-    const double vyf = vf * std::sin(yaw_f);
+    const double vx1 = v1 * std::cos(yaw_1);
+    const double vy1 = v1 * std::sin(yaw_1);
 
-    const BoundaryCondition x_bc{x0, vx0, xf, vxf};
-    const BoundaryCondition y_bc{y0, vy0, yf, vyf};
+    const BoundaryConditionsStartEnd x_bc{{x0, vx0}, {x1, vx1}};
+    const BoundaryConditionsStartEnd y_bc{{y0, vy0}, {y1, vy1}};
 
     return {x_bc, y_bc};
 }
 
+inline double polyval0(const CubicCoeffs coeffs, const double t1) {
+    const double t2 = t1 * t1;
+    const double t3 = t2 * t1;
+    return coeffs.a3 * t3 + coeffs.a2 * t2 + coeffs.a1 * t1 + coeffs.a0;
+}
+
+inline double polyval1(const CubicCoeffs coeffs, const double t1) {
+    const double t2 = t1 * t1;
+    return 3.0 * coeffs.a3 * t2 + 2.0 * coeffs.a2 * t1 + coeffs.a1;
+}
+
+inline double polyval2(const CubicCoeffs coeffs, const double t1) {
+    return 6.0 * coeffs.a3 * t1 + 2.0 * coeffs.a2;
+}
+
+inline int inferTrajectoryDirection(const CubicCoeffs x_coeffs, const CubicCoeffs y_coeffs, const double dt, const double yaw0) {
+    // Compute components of a small "secant" stub of the path just after the start,
+    // using dt as the secant duration.
+    const double t0 = 0.0;
+    const double t1 = dt;
+
+    const double x0 = polyval0(x_coeffs, t0);
+    const double y0 = polyval0(y_coeffs, t0);
+    const double x1 = polyval0(x_coeffs, t1);
+    const double y1 = polyval0(y_coeffs, t1);
+    const double dx = x1 - x0;
+    const double dy = y1 - y0;
+
+    // Compute x- and y-components of the initial yaw.
+    const double cos_yaw0 = std::cos(yaw0);
+    const double sin_yaw0 = std::sin(yaw0);
+
+    // Dot product between path secant and initial yaw.
+    const double dot = dx * cos_yaw0 + dy * sin_yaw0;
+
+    // +1 if direction aligns with yaw (forward), -1 if opposite (reverse)
+    return (dot >= 0.0) ? 1 : -1;
+}
+
 template <int N>
-inline ActionSequence<N> steer_cubic(const StateVector& start, const StateVector& goal, const double t_total) {
+inline ActionSequence<N> steerCubic(const StateVector& start, const StateVector& goal, const double t_total) {
     const BoundaryConditionsXY bcs = states2bcs(start, goal);
 
     const CubicCoeffs x_coeffs = bc2coeffs(bcs.x, t_total);
@@ -78,30 +127,43 @@ inline ActionSequence<N> steer_cubic(const StateVector& start, const StateVector
 
     const double dt = t_total / N;
 
-    ActionSequence<N> action_sequence;
+    // Infer the trajectory direction.
+    const int traj_dir = inferTrajectoryDirection(x_coeffs, y_coeffs, dt, start(2));
 
+    ActionSequence<N> action_sequence;
     for (int i = 0; i < N; ++i) {
         // Sample time at midpoint of the current segment.
+        // This yields a bit more accurate sampling compared to sampling times at the start or end of the segment.
         const double t1 = (i + 0.5) * dt;
         const double t2 = square(t1);
 
-        const double dxdt = 3.0 * x_coeffs.a3 * t2 + 2.0 * x_coeffs.a2 * t1 + x_coeffs.a1;
-        const double dydt = 3.0 * y_coeffs.a3 * t2 + 2.0 * y_coeffs.a2 * t1 + y_coeffs.a1;
+        // Get first and second derivatives of x- and y-components of motion with respect to time using analytic polynomial expressions.
+        const double dxdt = polyval1(x_coeffs, t1);
+        const double dydt = polyval1(y_coeffs, t1);
+        const double d2xdt2 = polyval2(x_coeffs, t1);
+        const double d2ydt2 = polyval2(y_coeffs, t1);
 
-        const double d2xdt2 = 6.0 * x_coeffs.a3 * t1 + 2.0 * x_coeffs.a2;
-        const double d2ydt2 = 6.0 * y_coeffs.a3 * t1 + 2.0 * y_coeffs.a2;
-
-        // Clamp speed below by a small positive value to prevent division by zero 
-        // and avoid creating huge accelerations & curvatures.
-        static constexpr double v_min = 0.01;
-        const double v = std::max(std::sqrt(dxdt * dxdt + dydt * dydt), v_min);
+        // Speed and its cube.
+        const double v = shypot(dxdt, dydt);
         const double v3 = cube(v);
 
-        // Equations from differential flatness for kinematic bicycle.
-        const double accel = (dxdt * d2xdt2 + dydt * d2ydt2) / v;
-        const double curvature = (dxdt * d2ydt2 - dydt * d2xdt2) / v3;
+        // Compute actions.
+        double accel = 0;
+        double curvature = 0;
+        if (v > V_MIN) {
+            // Nominal case.
+            // Equations from differential flatness for kinematic bicycle.
+            accel = (dxdt * d2xdt2 + dydt * d2ydt2) / v;
+            curvature = (dxdt * d2ydt2 - dydt * d2xdt2) / v3;
+        } else {
+            // Alternate expression for speed below a small positive value to prevent division by zero
+            // and avoid singularity.
+            accel = shypot(d2xdt2, d2ydt2);
+            curvature = 0.0;
+        }
+        // Assemble and apply trajectory direction.
         const ActionVector action{accel, curvature};
-        action_sequence.col(i) = action;
+        action_sequence.col(i) = traj_dir * action;
     }
 
     return action_sequence;

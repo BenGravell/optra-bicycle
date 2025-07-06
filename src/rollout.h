@@ -32,14 +32,25 @@ inline void rolloutOpenLoopConstrained(const ActionSequence<N>& action_sequence,
         const StateVector& state = traj.stateAt(stage_idx);
         ActionVector action = action_sequence.col(stage_idx);
 
-        // Project action.
-        const double v_sq = state[3] * state[3];
-        double lon_accel = action[0];
-        double lat_accel = action[1] * v_sq;
-        double curvature = action[1];
-        const double dyn_max_curvature = std::min(max_curvature, max_lat_accel / std::max(v_sq, 1e-6));
-        lon_accel = std::clamp(lon_accel, -max_lon_accel, max_lon_accel);
-        curvature = std::clamp(curvature, -dyn_max_curvature, dyn_max_curvature);
+        // Extract intermediate quantities.
+        const double v_sq = square(state(3));
+        double lon_accel = action(0);
+        double curvature = action(1);
+
+        // Minimum squared speed to prevent division by zero.
+        static constexpr double v_sq_min = 1e-6;
+        
+        // Maximum curvature limit due to lateral acceleration limit.
+        const double a_curvature_max = accel_lat_max / std::max(v_sq, v_sq_min);
+
+        // Dynamic curvature limit, the more restrictive of
+        // 1. Static max curvature limit.
+        // 2. Lateral acceleration induced max curvature limit.
+        const double dyn_curvature_max = std::min(curvature_max, a_curvature_max);
+
+        // Clamp action.
+        lon_accel = std::clamp(lon_accel, -accel_lon_max, accel_lon_max);
+        curvature = std::clamp(curvature, -dyn_curvature_max, dyn_curvature_max);
         action << lon_accel, curvature;
 
         // Simulate forward one step.
