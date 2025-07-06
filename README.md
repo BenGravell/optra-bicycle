@@ -128,7 +128,7 @@ cmake --build build/debug --config Debug
 ## Run
 
 ```pwsh
-build/release/optra_bicycle.exe
+build/release/optra_bicycle
 
-build/debug/optra_bicycle.exe
+build/debug/optra_bicycle
 ```
