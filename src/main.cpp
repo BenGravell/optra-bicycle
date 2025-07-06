@@ -14,7 +14,6 @@
 
 #include "dynamics.h"
 #include "interp.h"
-#include "printing.h"
 #include "problem.h"
 #include "rollout.h"
 #include "rrt.h"

@@ -15,7 +15,7 @@
 
 #include "constants.h"
 #include "obstacle.h"
-#include "printing.h"
+#include "util.h"
 #include "solver.h"
 #include "space.h"
 #include "steer.h"

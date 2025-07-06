@@ -2,6 +2,7 @@
 
 #include "space.h"
 #include "trajectory.h"
+#include "util.h"
 
 
 // TODO for boundaryLoss
