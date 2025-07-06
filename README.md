@@ -14,7 +14,7 @@ The RRT and iLQR work together to provide rapid replanning and iterative optimiz
 
 This planner runs extremely quickly, at rates as fast as 50 Hz.
 
-The planner is interactive via the raylib app engine.
+The planner is interactive via a Raylib app.
 
 ## Development
 

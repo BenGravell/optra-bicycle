@@ -16,8 +16,6 @@ cmake -B build/debug -S . -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_
 cmake --build build/debug --config Debug
 ```
 
-
-
 ## Run
 
 ```pwsh
