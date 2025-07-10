@@ -113,21 +113,56 @@ struct Planner {
         return {solution, traj_pre_opt, clock_time};
     }
 
-    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm) {
+    template <int N>
+    static void addJitter(ActionSequence<N>& action_sequence, double sigma_a = 0.01, double sigma_k = 0.001) {
+        // Create RNG generator.
+        static thread_local std::default_random_engine generator(std::random_device{}());
+
+        // Set the distributions.
+        std::normal_distribution<double> distribution_a(0.0, sigma_a);
+        std::normal_distribution<double> distribution_k(0.0, sigma_k);
+
+        // Generate noise vectors
+        Eigen::Matrix<double, 1, N> noise_a;
+        Eigen::Matrix<double, 1, N> noise_k;
+
+        for (int i = 0; i < N; ++i) {
+            noise_a(0, i) = distribution_a(generator);
+            noise_k(0, i) = distribution_k(generator);
+        }
+
+        // Add noise in a single vectorized step
+        action_sequence.row(0) += noise_a;
+        action_sequence.row(1) += noise_k;
+    }
+
+    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_action_jitter) {
         const auto [tree, tree_exp_clock_time] = expandTree(start, goal, warm);
         const Path path = tree.extractPathToGoal(goal);
-        const auto [action_sequence, total_time] = convertPathToActionSequence(path);
+        auto [action_sequence, total_time] = convertPathToActionSequence(path);
+
+        if (use_action_jitter) {
+            // Add jitter on actions just before traj opt to try and jiggle out of bad local minima
+            addJitter(action_sequence);
+        }
+
         const auto [solution, traj_pre_opt, traj_opt_clock_time] = optimizeTrajectory(start, goal, total_time, action_sequence);
 
         return {tree, path, solution, traj_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
     }
 
-    static PlannerOutputs planTrajOptOnly(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm) {
+    static PlannerOutputs planTrajOptOnly(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_action_jitter) {
         Tree tree;
         static constexpr int tree_exp_clock_time = 0;
         Path path;
 
-        const auto [action_sequence, total_time] = convertWarmToActionSequence(warm);
+        auto [action_sequence, total_time] = convertWarmToActionSequence(warm);
+
+        if (use_action_jitter) {
+            // Add jitter on actions just before traj opt to try and jiggle out of bad local minima
+            addJitter(action_sequence);
+        }
+
         const auto [solution, traj_pre_opt, traj_opt_clock_time] = optimizeTrajectory(start, goal, total_time, action_sequence);
 
         return {tree, path, solution, traj_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
@@ -144,6 +179,7 @@ struct MultiPlannerOutputs {
 struct MultiPlannerSettings {
     bool use_warm_start;
     bool use_exploration_tree;
+    bool use_action_jitter;
 };
 
 struct MultiPlanner {
@@ -153,7 +189,7 @@ struct MultiPlanner {
 
         if (settings.use_warm_start) {
             // Run the primary planner, including warm-start.
-            planner_outputs.pri = Planner::plan(start, goal, warm);
+            planner_outputs.pri = Planner::plan(start, goal, warm, settings.use_action_jitter);
         }
 
         if (settings.use_exploration_tree) {
@@ -161,12 +197,12 @@ struct MultiPlanner {
             // Experimental idea. Works well in practice to avoid getting stuck in local minima induced by warm-starting.
             // This probably outweighs the cost of running the planner twice,
             // especially if the secondary planner could run in a separate thread concurrently.
-            planner_outputs.aux = Planner::plan(start, goal, std::nullopt);
+            planner_outputs.aux = Planner::plan(start, goal, std::nullopt, settings.use_action_jitter);
         }
 
         if (!settings.use_warm_start && !settings.use_exploration_tree) {
             // Run the traj-opt-only planner.
-            planner_outputs.def = Planner::planTrajOptOnly(start, goal, warm);
+            planner_outputs.def = Planner::planTrajOptOnly(start, goal, warm, settings.use_action_jitter);
         }
 
         // Set the ultimate output planner_outputs.out.

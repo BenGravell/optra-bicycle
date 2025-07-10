@@ -67,6 +67,8 @@ int main() {
     Rectangle advanceButton = {buttonX1, buttonMargin + 1 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
     Rectangle useWarmStartButton = {buttonX1, buttonMargin + 2 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
     Rectangle useExplorationTreeButton = {buttonX1, buttonMargin + 3 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
+    Rectangle useActionJitterButton = {buttonX1, buttonMargin + 4 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
+
     Rectangle showTreeButton = {buttonX2, buttonMargin + 0 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
     Rectangle showPreOptTrajButton = {buttonX2, buttonMargin + 1 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
     Rectangle showPostOptTrajButton = {buttonX2, buttonMargin + 2 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
@@ -76,6 +78,7 @@ int main() {
     bool paused = false;  // Game pause state
     bool useWarmStart = true;
     bool useExplorationTree = true;
+    bool useActionJitter = true;
 
     bool showTree = true;
     bool showPreOptTraj = true;
@@ -91,7 +94,7 @@ int main() {
 
     // Initial plan
     MultiPlannerOutputs planner_outputs;
-    const MultiPlannerSettings planner_settings = {useWarmStart, useExplorationTree};
+    const MultiPlannerSettings planner_settings = {useWarmStart, useExplorationTree, useActionJitter};
     planner_outputs = MultiPlanner::plan(planner_settings, start, goal, std::nullopt);
 
     SetTargetFPS(GAME_FPS);
@@ -111,12 +114,14 @@ int main() {
         const bool mouseInAdvanceButton = CheckCollisionPointRec(mousePoint, advanceButton);
         const bool mouseInUseWarmStartButton = CheckCollisionPointRec(mousePoint, useWarmStartButton);
         const bool mouseInUseExplorationTreeButton = CheckCollisionPointRec(mousePoint, useExplorationTreeButton);
+        const bool mouseInUseActionJitterButton = CheckCollisionPointRec(mousePoint, useActionJitterButton);
+
         const bool mouseInShowTreeButton = CheckCollisionPointRec(mousePoint, showTreeButton);
         const bool mouseInShowPreOptTrajButton = CheckCollisionPointRec(mousePoint, showPreOptTrajButton);
         const bool mouseInShowPostOptTrajButton = CheckCollisionPointRec(mousePoint, showPostOptTrajButton);
 
         // check if mouse is in a button
-        const bool mouseInButton = mouseInPauseButton || mouseInAdvanceButton || mouseInUseWarmStartButton || mouseInUseExplorationTreeButton || mouseInShowTreeButton || mouseInShowPreOptTrajButton || mouseInShowPostOptTrajButton;
+        const bool mouseInButton = mouseInPauseButton || mouseInAdvanceButton || mouseInUseWarmStartButton || mouseInUseActionJitterButton || mouseInUseExplorationTreeButton || mouseInShowTreeButton || mouseInShowPreOptTrajButton || mouseInShowPostOptTrajButton;
 
         // update toggle states
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInPauseButton) {
@@ -128,6 +133,10 @@ int main() {
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInUseExplorationTreeButton) {
             useExplorationTree = !useExplorationTree;
         }
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInUseActionJitterButton) {
+            useActionJitter = !useActionJitter;
+        }
+
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInShowTreeButton) {
             showTree = !showTree;
         }
@@ -169,7 +178,7 @@ int main() {
         // Update game state.
         const bool do_update_game = !paused || explicitAdvance;
         if (do_update_game) {
-            const MultiPlannerSettings planner_settings = {useWarmStart, useExplorationTree};
+            const MultiPlannerSettings planner_settings = {useWarmStart, useExplorationTree, useActionJitter};
             const auto warm = std::make_optional(planner_outputs.out.solution);
             planner_outputs = MultiPlanner::plan(planner_settings, start, goal, warm);
         }
@@ -244,6 +253,10 @@ int main() {
         // Draw use-exploration-tree button
         DrawRectangleRec(useExplorationTreeButton, GRAY);
         DrawText(useExplorationTree ? "Disable cold-start tree" : "Enable cold-start tree", useExplorationTreeButton.x + 10, useExplorationTreeButton.y + 15, 20, RAYWHITE);
+
+        // Draw use-action-jitter button
+        DrawRectangleRec(useActionJitterButton, GRAY);
+        DrawText(useActionJitter ? "Disable action jitter" : "Enable action jitter", useActionJitterButton.x + 10, useActionJitterButton.y + 15, 20, RAYWHITE);
 
         // Draw show-tree button
         DrawRectangleRec(showTreeButton, GRAY);
