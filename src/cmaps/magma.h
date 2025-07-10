@@ -1,4 +1,7 @@
 // Generated magma colormap lookup table
+
+#pragma once
+
 #include <cstdint>
 #include <array>
 

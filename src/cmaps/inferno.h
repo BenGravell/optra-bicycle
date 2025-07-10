@@ -1,4 +1,7 @@
 // Generated inferno colormap lookup table
+
+#pragma once
+
 #include <cstdint>
 #include <array>
 

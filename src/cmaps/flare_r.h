@@ -1,4 +1,7 @@
 // Generated flare_r colormap lookup table
+
+#pragma once
+
 #include <cstdint>
 #include <array>
 

@@ -1,4 +1,7 @@
 // Generated turbo colormap lookup table
+
+#pragma once
+
 #include <cstdint>
 #include <array>
 
