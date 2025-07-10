@@ -336,6 +336,7 @@ struct Tree {
     //     return nearest_node;
     // }
 
+    // Get the node which is nearest to the target in terms of achieving the lowest cost to come to the target via the node.
     const std::shared_ptr<Node> getNearestCostToCome(const StateVector& target, const int target_time_ix) const {
         double min_cost_to_come = std::numeric_limits<double>::max();
         std::shared_ptr<Node> nearest_node = nullptr;
@@ -345,11 +346,14 @@ struct Tree {
                 continue;
             }
 
-            // Steering
+            // Steer from node to target.
             const bool constrain = false;
-            const auto steer_out = steer(node->state, target, constrain);
-            const double cost_to_come = steer_out.cost + node->cost_to_come;
+            const auto steer_outputs = steer(node->state, target, constrain);
+
+            // Check if cost-to-come is improved relative to current best.
+            const double cost_to_come = node->cost_to_come + steer_outputs.cost;
             const bool cost_improved = cost_to_come < min_cost_to_come;
+
             if (cost_improved) {
                 min_cost_to_come = cost_to_come;
                 nearest_node = node;
@@ -374,12 +378,16 @@ struct Tree {
                 continue;
             }
 
+            // Check if target was hit.
             static constexpr double tol_factor = 20.0;
             const bool target_hit = checkTargetHit(node->state, target, tol_factor);
+
+            // Check if cost is improved compared with current best.
             const double cost = node->cost_to_come;
             const bool cost_improved = cost < min_cost;
-            const bool acceptable = cost_improved && target_hit;
-            if (acceptable) {
+
+            const bool found_new_best = cost_improved && target_hit;
+            if (found_new_best) {
                 min_cost = cost;
                 best_node = node;
             }
@@ -514,9 +522,9 @@ struct Tree {
                 // NOTE: Using projection tends to produce bang-bang trajectories.
                 // This might not be good on its own, but using traj opt post-processing mitigates any ill-effects.
                 const bool constrain = true;
-                const auto steer_out = steer(parent->state, state, constrain);
-                const auto& traj = steer_out.traj;
-                const double cost = steer_out.cost;
+                const auto steer_outputs = steer(parent->state, state, constrain);
+                const auto& traj = steer_outputs.traj;
+                const double cost = steer_outputs.cost;
 
                 // Reset state sample as the terminal state in the trajectory.
                 state = traj.stateTerminal();
@@ -548,20 +556,20 @@ struct Tree {
         }
         ratio_rejected_samples = static_cast<double>(num_rejected_samples) / static_cast<double>(num_total_samples);
 
-        // ---- Steer to goal
+        // ---- Add node to steer to goal.
         // TODO make this a method
         {
             const std::shared_ptr<Node> node_nearest_goal = getNearestCostToCome(goal, time_ix_max);
             if (node_nearest_goal != nullptr) {
                 // Steer from parent to goal.
                 const bool constrain = true;
-                const auto steer_out = steer(node_nearest_goal->state, goal, constrain);
-                const auto& traj = steer_out.traj;
-                const double cost = steer_out.cost;
+                const auto steer_outputs = steer(node_nearest_goal->state, goal, constrain);
+                const auto& traj = steer_outputs.traj;
+                const double cost = steer_outputs.cost;
                 const StateVector& state = traj.stateTerminal();
 
                 // Add node regardless of whether trajectory satisfies any constraints.
-                // This ensures the tree has a node with time_ix_max.
+                // This ensures the tree has at least one node with time_ix = time_ix_max.
                 const Node node{state, node_nearest_goal, traj, cost, cost + node_nearest_goal->cost_to_come, steer_time, time_ix_max, next_node_ix};
                 addNode(std::make_shared<Node>(node));
                 next_node_ix++;
