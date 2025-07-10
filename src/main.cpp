@@ -19,8 +19,8 @@
 #include "core/interp.h"
 #include "core/problem.h"
 #include "core/rollout.h"
-#include "core/space.h"
 #include "core/search_space.h"
+#include "core/space.h"
 #include "core/util.h"
 #include "ilqr/solver.h"
 #include "ilqr/solver_settings.h"
@@ -468,7 +468,6 @@ int main() {
     CloseWindow();
     return 0;
 }
-
 
 // // UNIT TEST FOR steerCubic
 // int main() {
