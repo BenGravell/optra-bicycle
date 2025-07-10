@@ -7,18 +7,18 @@
 #include "core/space.h"
 
 // Length of trajectory for steering function, i.e. for one node.
-static constexpr uint64_t traj_length_steer = 10;
+static constexpr uint64_t TRAJ_LENGTH_STEER = 10;
 
 // Length of trajectory for trajectory optimization, i.e. the entire trajectory.
-static constexpr uint64_t traj_length_opt = 100;
+static constexpr uint64_t TRAJ_LENGTH_OPT = 100;
 
-static_assert((traj_length_opt % traj_length_steer) == 0, "traj_length_opt must be a multiple of traj_length_steer");
-
-template <int N>
-using StateSequence = Eigen::Matrix<double, num_states, N + 1>;
+static_assert((TRAJ_LENGTH_OPT % TRAJ_LENGTH_STEER) == 0, "TRAJ_LENGTH_OPT must be a multiple of TRAJ_LENGTH_STEER");
 
 template <int N>
-using ActionSequence = Eigen::Matrix<double, num_actions, N>;
+using StateSequence = Eigen::Matrix<double, NUM_STATES, N + 1>;
+
+template <int N>
+using ActionSequence = Eigen::Matrix<double, NUM_ACTIONS, N>;
 
 template <int N>
 struct Trajectory {

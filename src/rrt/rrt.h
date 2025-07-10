@@ -15,6 +15,7 @@
 
 #include "core/constants.h"
 #include "core/obstacle.h"
+#include "core/search_space.h"
 #include "core/space.h"
 #include "core/trajectory.h"
 #include "core/util.h"
@@ -26,32 +27,19 @@ std::random_device rd;
 std::mt19937 gen(42);  // Mersenne Twister engine w/ fixed seed
 // std::mt19937 gen(rd());  // Mersenne Twister engine w/ random seed
 
-static constexpr double x_max = 20.0;
-static constexpr double x_min = 0.0;
-
-static constexpr double y_max = 2.0;
-static constexpr double y_min = -y_max;
-// static constexpr double y_min = 0;
-
-static constexpr double yaw_max = 0.5 * PI;
-static constexpr double yaw_min = -yaw_max;
-
-static constexpr double v_max = 5.0;
-static constexpr double v_min = -5.0;
-
 // Time of a single step, seconds
-static constexpr double dt = 0.1;
+static constexpr double DT = 0.1;
 
 // Time of a steering function trajectory, seconds
-static constexpr double steer_time = dt * traj_length_steer;
+static constexpr double steer_time = DT * TRAJ_LENGTH_STEER;
 
 // Factor used to iteratively pull samples closer to nearest parent.
 // Should be in (0, 1), closer to 1 means less aggressive moves (precise search, more iterations)
 static constexpr double attract_factor = 0.6;
 
 // Depth of the tree.
-// Integer division is OK because traj_length_opt is an integer multiple of traj_length_steer.
-static constexpr int tree_depth = traj_length_opt / traj_length_steer;
+// Integer division is OK because TRAJ_LENGTH_OPT is an integer multiple of TRAJ_LENGTH_STEER.
+static constexpr int tree_depth = TRAJ_LENGTH_OPT / TRAJ_LENGTH_STEER;
 
 // Time index runs from 0 to tree_depth - 1 so that there are tree_depth such time indices.
 static constexpr int time_ix_max = tree_depth - 1;
@@ -119,17 +107,17 @@ inline double softLoss(const Trajectory<N>& traj) {
 }
 
 struct SteerOutputs {
-    Trajectory<traj_length_steer> traj;
+    Trajectory<TRAJ_LENGTH_STEER> traj;
     double cost;
 };
 
 inline SteerOutputs steer(const StateVector& start, const StateVector& goal, const bool constrain) {
     // Cubic polynomial steering.
-    const ActionSequence<traj_length_steer> action_sequence = steerCubic<traj_length_steer>(start, goal, steer_time);
+    const ActionSequence<TRAJ_LENGTH_STEER> action_sequence = steerCubic<TRAJ_LENGTH_STEER>(start, goal, steer_time);
 
     // Rollout.
-    const Dynamics dynamics{dt};
-    Trajectory<traj_length_steer> traj;
+    const Dynamics dynamics{DT};
+    Trajectory<TRAJ_LENGTH_STEER> traj;
     if (constrain) {
         rolloutOpenLoopConstrained(action_sequence, start, dynamics, traj);
     } else {
@@ -145,7 +133,7 @@ inline SteerOutputs steer(const StateVector& start, const StateVector& goal, con
 struct Node {
     const StateVector state;
     const std::shared_ptr<Node> parent;
-    const Trajectory<traj_length_steer> traj;
+    const Trajectory<TRAJ_LENGTH_STEER> traj;
     const double cost;
     const double cost_to_come;
     const double total_time;
@@ -153,6 +141,8 @@ struct Node {
     const int ix;
     const bool is_warm{false};
 };
+
+using Path = std::vector<std::shared_ptr<Node>>;
 
 inline double urand() {
     // TODO this is inefficient, creating a new distribution on every call (?)
@@ -204,7 +194,7 @@ inline StateVector sampleNear(const StateVector& state, const double perturb_fac
     return {x, y, yaw, v};
 }
 
-inline StateVector sampleNearWarm(const Solution<traj_length_opt>& warm, const int time_ix) {
+inline StateVector sampleNearWarm(const Solution<TRAJ_LENGTH_OPT>& warm, const int time_ix) {
     // Choose a random state from the warm-start solution.
 
     // Selector for pure or sub-trajectory random index.
@@ -217,13 +207,13 @@ inline StateVector sampleNearWarm(const Solution<traj_length_opt>& warm, const i
     double perturb_factor;
     if (use_sub_traj) {
         // Within sub-trajectory corresponding to given time_ix
-        ix_lwr = time_ix * traj_length_steer;
-        ix_upr = ix_lwr + traj_length_steer;
+        ix_lwr = time_ix * TRAJ_LENGTH_STEER;
+        ix_upr = ix_lwr + TRAJ_LENGTH_STEER;
         perturb_factor = 0.4;
     } else {
         // Pure random
         ix_lwr = 0;
-        ix_upr = traj_length_opt;
+        ix_upr = TRAJ_LENGTH_OPT;
         perturb_factor = 1.0;
     }
 
@@ -233,7 +223,7 @@ inline StateVector sampleNearWarm(const Solution<traj_length_opt>& warm, const i
     return sampleNear(state, perturb_factor);
 }
 
-inline StateVector sample(const StateVector& goal, const std::optional<Solution<traj_length_opt>>& warm, const int time_ix) {
+inline StateVector sample(const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const int time_ix) {
     // Always sample around the warm-start trajectory if available.
     if (warm) {
         return sampleNearWarm(warm.value(), time_ix);
@@ -406,13 +396,13 @@ struct Tree {
         nodes.push_back(node);
     }
 
-    void grow(const StateVector& start, const StateVector& goal, const int num_nodes, const std::optional<Solution<traj_length_opt>>& warm = std::nullopt) {
+    void grow(const StateVector& start, const StateVector& goal, const int num_nodes, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm = std::nullopt) {
         int next_node_ix = 0;
         int num_total_samples = 0;
         int num_rejected_samples = 0;
 
         // Create root node and add to the tree.
-        const Trajectory<traj_length_steer> root_traj;
+        const Trajectory<TRAJ_LENGTH_STEER> root_traj;
         const int time_ix_root_node = -1;
         const Node root_node = Node(start, nullptr, root_traj, 0.0, 0.0, 0.0, time_ix_root_node, next_node_ix);
         const std::shared_ptr<Node> root_node_ptr = std::make_shared<Node>(root_node);
@@ -429,14 +419,14 @@ struct Tree {
             std::shared_ptr<Node> sub_parent = root_node_ptr;
             for (int time_ix = 0; time_ix < tree_depth; ++time_ix) {
                 // Infer the indices into the whole solution for the current sub-node.
-                const int ix_offset = time_ix * traj_length_steer;
+                const int ix_offset = time_ix * TRAJ_LENGTH_STEER;
 
                 // Form the sub-node.
-                Trajectory<traj_length_steer> sub_traj;
-                for (int stage_ix = 0; stage_ix <= traj_length_steer; ++stage_ix) {
+                Trajectory<TRAJ_LENGTH_STEER> sub_traj;
+                for (int stage_ix = 0; stage_ix <= TRAJ_LENGTH_STEER; ++stage_ix) {
                     const int ix_in_warm_traj = ix_offset + stage_ix;
                     sub_traj.setStateAt(stage_ix, warm->traj.stateAt(ix_in_warm_traj));
-                    if (stage_ix < traj_length_steer) {
+                    if (stage_ix < TRAJ_LENGTH_STEER) {
                         sub_traj.setActionAt(stage_ix, warm->traj.actionAt(ix_in_warm_traj));
                     }
                 }
@@ -502,7 +492,7 @@ struct Tree {
                 // Move sample close enough to the zero-action point.
                 static constexpr double d_max_deviation_factor = 20.0;
                 static constexpr double a_max = std::max(accel_lon_max, accel_lat_max);
-                static constexpr double d_max_deviation_nominal = 0.5 * dt * dt * a_max;
+                static constexpr double d_max_deviation_nominal = 0.5 * DT * DT * a_max;
                 static constexpr double d_max_deviation = d_max_deviation_factor * d_max_deviation_nominal;
                 StateVector zero_action_point = rolloutZeroAction(parent->state, steer_time);
                 while (distanceHeuristic(state, zero_action_point) > d_max_deviation) {
@@ -577,5 +567,31 @@ struct Tree {
                 next_node_ix++;
             }
         }
+    }
+
+    Path extractPathToGoal(const StateVector& goal) const {
+        int time_ix_for_path_extraction = time_ix_max + 1;
+        std::shared_ptr<Node> node_best = nullptr;
+
+        // In the best case, we will get the goal node on the first iteration of this loop.
+        // In the worst case, we will get the root node and the loop terminates in finite iterations.
+        while (node_best == nullptr) {
+            node_best = getCheapestSolutionPrecise(goal, time_ix_for_path_extraction);
+            time_ix_for_path_extraction--;
+        }
+
+        // Reconstruct the path by traversing parent pointers.
+        Path path;
+        std::shared_ptr<Node> node = node_best;
+        while (node->parent != nullptr) {
+            path.push_back(node);
+            node = node->parent;
+        }
+        // NOTE: DO NOT push back the root, which has garbage for parent info e.g. trajectory.
+
+        // Reverse the path so it starts at the root.
+        std::reverse(path.begin(), path.end());
+
+        return path;
     }
 };

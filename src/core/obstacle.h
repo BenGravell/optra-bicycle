@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/position.h"
 #include "core/space.h"
 #include "core/trajectory.h"
 #include "core/util.h"
@@ -21,11 +22,6 @@
 //         return std::min(c_x, c_y);
 //     }
 // };
-
-struct Position {
-    const double x;
-    const double y;
-};
 
 inline Eigen::Vector2d positionDelta(const Position& position, const StateVector& state) {
     return state.head(2) - Eigen::Vector2d(position.x, position.y);

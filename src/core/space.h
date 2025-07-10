@@ -4,15 +4,15 @@
 #include <ostream>
 
 // [x, y, yaw, speed]
-static constexpr uint64_t num_states = 4;
+static constexpr uint64_t NUM_STATES = 4;
 
 // [acceleration, curvature]
-static constexpr uint64_t num_actions = 2;
+static constexpr uint64_t NUM_ACTIONS = 2;
 
-using StateVector = Eigen::Vector<double, num_states>;
-using ActionVector = Eigen::Vector<double, num_actions>;
+using StateVector = Eigen::Vector<double, NUM_STATES>;
+using ActionVector = Eigen::Vector<double, NUM_ACTIONS>;
 
-using StateStateMatrix = Eigen::Matrix<double, num_states, num_states>;
-using StateActionMatrix = Eigen::Matrix<double, num_states, num_actions>;
-using ActionActionMatrix = Eigen::Matrix<double, num_actions, num_actions>;
-using ActionStateMatrix = Eigen::Matrix<double, num_actions, num_states>;
+using StateStateMatrix = Eigen::Matrix<double, NUM_STATES, NUM_STATES>;
+using StateActionMatrix = Eigen::Matrix<double, NUM_STATES, NUM_ACTIONS>;
+using ActionActionMatrix = Eigen::Matrix<double, NUM_ACTIONS, NUM_ACTIONS>;
+using ActionStateMatrix = Eigen::Matrix<double, NUM_ACTIONS, NUM_STATES>;
