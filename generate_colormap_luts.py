@@ -19,7 +19,8 @@ def generate_colormap_lut_cpp(cmap_name: str, source: str, num_colors: int = 256
     lut_255 = (lut * 255).astype(int)
 
     with open(filename, "w") as f:
-        f.write(f"// Generated {cmap_name} colormap lookup table\n")
+        f.write(f"// Generated {cmap_name} colormap lookup table\n\n")
+        f.write("#pragma once\n\n")
         f.write("#include <cstdint>\n")
         f.write("#include <array>\n")
         f.write("\n")
