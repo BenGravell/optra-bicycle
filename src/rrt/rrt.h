@@ -157,9 +157,9 @@ inline double urand(const double x_min, const double x_max) {
 }
 
 inline StateVector sample() {
-    const double x = urand(x_min, x_max);
-    const double y = urand(y_min, y_max);
-    const double yaw = urand(yaw_min, yaw_max);
+    const double x = urand(X_MIN, X_MAX);
+    const double y = urand(Y_MIN, Y_MAX);
+    const double yaw = urand(YAW_MIN, YAW_MAX);
     const double v = urand(V_MIN, V_MAX);
     return {x, y, yaw, v};
 }
@@ -178,12 +178,12 @@ inline StateVector sampleNear(const StateVector& state, const double perturb_fac
     double v_min_s = state(3) - dv;
     double v_max_s = state(3) + dv;
 
-    x_min_s = std::clamp(x_min_s, x_min, x_max);
-    x_max_s = std::clamp(x_max_s, x_min, x_max);
-    y_min_s = std::clamp(y_min_s, y_min, y_max);
-    y_max_s = std::clamp(y_max_s, y_min, y_max);
-    yaw_min_s = std::clamp(yaw_min_s, yaw_min, yaw_max);
-    yaw_max_s = std::clamp(yaw_max_s, yaw_min, yaw_max);
+    x_min_s = std::clamp(x_min_s, X_MIN, X_MAX);
+    x_max_s = std::clamp(x_max_s, X_MIN, X_MAX);
+    y_min_s = std::clamp(y_min_s, Y_MIN, Y_MAX);
+    y_max_s = std::clamp(y_max_s, Y_MIN, Y_MAX);
+    yaw_min_s = std::clamp(yaw_min_s, YAW_MIN, YAW_MAX);
+    yaw_max_s = std::clamp(yaw_max_s, YAW_MIN, YAW_MAX);
     v_min_s = std::clamp(v_min_s, V_MIN, V_MAX);
     v_max_s = std::clamp(v_max_s, V_MIN, V_MAX);
 
@@ -238,9 +238,9 @@ inline StateVector sample(const StateVector& goal, const std::optional<Solution<
 }
 
 inline bool outsideEnvironment(const StateVector& state) {
-    const bool x_ok = (x_min <= state(0)) && (state(0) <= x_max);
-    const bool y_ok = (y_min <= state(1)) && (state(1) <= y_max);
-    const bool yaw_ok = (yaw_min <= state(2)) && (state(2) <= yaw_max);
+    const bool x_ok = (X_MIN <= state(0)) && (state(0) <= X_MAX);
+    const bool y_ok = (Y_MIN <= state(1)) && (state(1) <= Y_MAX);
+    const bool yaw_ok = (YAW_MIN <= state(2)) && (state(2) <= YAW_MAX);
     const bool v_ok = (V_MIN <= state(3)) && (state(3) <= V_MAX);
     return !(x_ok && y_ok && yaw_ok && v_ok);
 }

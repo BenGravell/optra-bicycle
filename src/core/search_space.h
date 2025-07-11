@@ -3,20 +3,19 @@
 #include "core/constants.h"
 #include "core/space.h"
 
-static constexpr double x_max = 20.0;
-static constexpr double x_min = 0.0;
+static constexpr double X_MAX = 20.0;
+static constexpr double X_MIN = 0.0;
 
-static constexpr double y_max = 2.0;
-static constexpr double y_min = -y_max;
-// static constexpr double y_min = 0;
+static constexpr double Y_MAX = 2.0;
+static constexpr double Y_MIN = -Y_MAX;
 
-static constexpr double yaw_max = 0.5 * PI;
-static constexpr double yaw_min = -yaw_max;
+static constexpr double YAW_MAX = 0.5 * PI;
+static constexpr double YAW_MIN = -YAW_MAX;
 
 inline StateVector clampToSearchSpace(const StateVector& state) {
-    const double x = std::clamp(state(0), x_min, x_max);
-    const double y = std::clamp(state(1), y_min, y_max);
-    const double yaw = std::clamp(state(2), yaw_min, yaw_max);
+    const double x = std::clamp(state(0), X_MIN, X_MAX);
+    const double y = std::clamp(state(1), Y_MIN, Y_MAX);
+    const double yaw = std::clamp(state(2), YAW_MIN, YAW_MAX);
     const double v = std::clamp(state(3), V_MIN, V_MAX);
     return {x, y, yaw, v};
 }
