@@ -160,7 +160,7 @@ inline StateVector sample() {
     const double x = urand(x_min, x_max);
     const double y = urand(y_min, y_max);
     const double yaw = urand(yaw_min, yaw_max);
-    const double v = urand(v_min, v_max);
+    const double v = urand(V_MIN, V_MAX);
     return {x, y, yaw, v};
 }
 
@@ -184,8 +184,8 @@ inline StateVector sampleNear(const StateVector& state, const double perturb_fac
     y_max_s = std::clamp(y_max_s, y_min, y_max);
     yaw_min_s = std::clamp(yaw_min_s, yaw_min, yaw_max);
     yaw_max_s = std::clamp(yaw_max_s, yaw_min, yaw_max);
-    v_min_s = std::clamp(v_min_s, v_min, v_max);
-    v_max_s = std::clamp(v_max_s, v_min, v_max);
+    v_min_s = std::clamp(v_min_s, V_MIN, V_MAX);
+    v_max_s = std::clamp(v_max_s, V_MIN, V_MAX);
 
     const double x = urand(x_min_s, x_max_s);
     const double y = urand(y_min_s, y_max_s);
@@ -241,7 +241,7 @@ inline bool outsideEnvironment(const StateVector& state) {
     const bool x_ok = (x_min <= state(0)) && (state(0) <= x_max);
     const bool y_ok = (y_min <= state(1)) && (state(1) <= y_max);
     const bool yaw_ok = (yaw_min <= state(2)) && (state(2) <= yaw_max);
-    const bool v_ok = (v_min <= state(3)) && (state(3) <= v_max);
+    const bool v_ok = (V_MIN <= state(3)) && (state(3) <= V_MAX);
     return !(x_ok && y_ok && yaw_ok && v_ok);
 }
 
@@ -499,7 +499,7 @@ struct Tree {
 
                 // Move sample close enough to the zero-action point.
                 static constexpr double d_max_deviation_factor = 20.0;
-                static constexpr double a_max = std::max(accel_lon_max, accel_lat_max);
+                static constexpr double a_max = std::max(ACCEL_LON_MAX, ACCEL_LAT_MAX);
                 static constexpr double d_max_deviation_nominal = 0.5 * DT * DT * a_max;
                 static constexpr double d_max_deviation = d_max_deviation_factor * d_max_deviation_nominal;
                 StateVector zero_action_point = rolloutZeroAction(parent->state, steer_time);

@@ -92,22 +92,28 @@ int main() {
     static const int button_width = 300;
     static const int button_height = 50;
     static const int button_margin = 10;
-    static const int button_x1 = SCREEN_WIDTH - 2 * (button_width + button_margin);
-    static const int button_x2 = SCREEN_WIDTH - 1 * (button_width + button_margin);
+    static const int button_x1 = SCREEN_WIDTH - 3 * (button_width + button_margin);
+    static const int button_x2 = SCREEN_WIDTH - 2 * (button_width + button_margin);
+    static const int button_x3 = SCREEN_WIDTH - 1 * (button_width + button_margin);
 
-    Rectangle pause_button = {button_x1, button_margin + 0 * (button_height + button_margin), button_width, button_height};
-    Rectangle advance_button = {button_x1, button_margin + 1 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_warm_start_button = {button_x1, button_margin + 2 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_exploration_tree_button = {button_x1, button_margin + 3 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_action_jitter_button = {button_x1, button_margin + 4 * (button_height + button_margin), button_width, button_height};
+    // Column 1
+    Rectangle pause_button = {button_x1, button_margin + 1 * (button_height + button_margin), button_width, button_height};
+    Rectangle advance_button = {button_x1, button_margin + 2 * (button_height + button_margin), button_width, button_height};
 
-    Rectangle show_tree_button = {button_x2, button_margin + 0 * (button_height + button_margin), button_width, button_height};
-    Rectangle show_pre_opt_traj_button = {button_x2, button_margin + 1 * (button_height + button_margin), button_width, button_height};
-    Rectangle show_post_opt_traj_button = {button_x2, button_margin + 2 * (button_height + button_margin), button_width, button_height};
+    // Column 2
+    Rectangle use_action_jitter_button = {button_x2, button_margin + 0 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_warm_start_button = {button_x2, button_margin + 1 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_exploration_tree_button = {button_x2, button_margin + 2 * (button_height + button_margin), button_width, button_height};
+
+    // Column 3
+    Rectangle show_tree_button = {button_x3, button_margin + 0 * (button_height + button_margin), button_width, button_height};
+    Rectangle show_pre_opt_traj_button = {button_x3, button_margin + 1 * (button_height + button_margin), button_width, button_height};
+    Rectangle show_post_opt_traj_button = {button_x3, button_margin + 2 * (button_height + button_margin), button_width, button_height};
 
     Rectangle search_space_rec = {ORIGIN_SS.x, ORIGIN_SS.y - 2 * SCALE_SS, 20 * SCALE_SS, 4 * SCALE_SS};
 
-    bool paused = false;  // Game pause state
+    // toggle-able states
+    bool paused = false;
     bool use_warm_start = true;
     bool use_exploration_tree = true;
     bool use_action_jitter = true;
@@ -357,10 +363,10 @@ int main() {
 
             // TODO add plot title string as arg for drawTimePlot
 
-            drawTimePlot(speed_time_plot_data_vals, v_max, dt, total_time, viz_settings, 0, "Speed", monoFont);
-            drawTimePlot(lon_accel_time_plot_data_vals, accel_lon_max, dt, total_time, viz_settings, 1, "Lon Accel", monoFont);
-            drawTimePlot(lat_accel_time_plot_data_vals, accel_lat_max, dt, total_time, viz_settings, 2, "Lat Accel", monoFont);
-            drawTimePlot(curvature_time_plot_data_vals, curvature_max, dt, total_time, viz_settings, 3, "Curvature", monoFont);
+            drawTimePlot(speed_time_plot_data_vals, V_MAX, dt, total_time, viz_settings, 0, "Speed", monoFont);
+            drawTimePlot(lon_accel_time_plot_data_vals, ACCEL_LON_MAX, dt, total_time, viz_settings, 1, "Lon Accel", monoFont);
+            drawTimePlot(lat_accel_time_plot_data_vals, ACCEL_LAT_MAX, dt, total_time, viz_settings, 2, "Lat Accel", monoFont);
+            drawTimePlot(curvature_time_plot_data_vals, CURVATURE_MAX, dt, total_time, viz_settings, 3, "Curvature", monoFont);
         }
 
         const float draw_elm_clock_stop = GetTime();

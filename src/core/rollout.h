@@ -41,15 +41,15 @@ inline void rolloutOpenLoopConstrained(const ActionSequence<N>& action_sequence,
         static constexpr double v_sq_min = 1e-6;
 
         // Maximum curvature limit due to lateral acceleration limit.
-        const double a_curvature_max = accel_lat_max / std::max(v_sq, v_sq_min);
+        const double a_curvature_max = ACCEL_LAT_MAX / std::max(v_sq, v_sq_min);
 
         // Dynamic curvature limit, the more restrictive of
         // 1. Static max curvature limit.
         // 2. Lateral acceleration induced max curvature limit.
-        const double dyn_curvature_max = std::min(curvature_max, a_curvature_max);
+        const double dyn_curvature_max = std::min(CURVATURE_MAX, a_curvature_max);
 
         // Clamp action.
-        lon_accel = std::clamp(lon_accel, -accel_lon_max, accel_lon_max);
+        lon_accel = std::clamp(lon_accel, -ACCEL_LON_MAX, ACCEL_LON_MAX);
         curvature = std::clamp(curvature, -dyn_curvature_max, dyn_curvature_max);
         action << lon_accel, curvature;
 

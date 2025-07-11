@@ -17,6 +17,6 @@ inline StateVector clampToSearchSpace(const StateVector& state) {
     const double x = std::clamp(state(0), x_min, x_max);
     const double y = std::clamp(state(1), y_min, y_max);
     const double yaw = std::clamp(state(2), yaw_min, yaw_max);
-    const double v = std::clamp(state(3), v_min, v_max);
+    const double v = std::clamp(state(3), V_MIN, V_MAX);
     return {x, y, yaw, v};
 }

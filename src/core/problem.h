@@ -36,28 +36,29 @@ inline Problem makeProblem(const StateVector initial_state, const StateVector te
     static constexpr double accel_lon_tol = 0.5;
     static constexpr double accel_lat_tol = 0.5;
     static constexpr double curvature_tol = 0.05;
-    const SoftParams soft_params{accel_lon_scale, accel_lat_scale, curvature_scale, accel_lon_tol, accel_lat_tol, curvature_tol};
+    const SoftParams soft_params{accel_lon_scale,
+                                 accel_lat_scale,
+                                 curvature_scale,
+                                 accel_lon_tol,
+                                 accel_lat_tol,
+                                 curvature_tol};
 
-    // Vehicle limits
-    static constexpr double speed_max = 40.0;   // ~90 mph
-    static constexpr double speed_min = -10.0;  // ~22 mph
-
-    const VehicleLimits vehicle_limits{speed_max,
-                                       speed_min,
-                                       accel_lon_max,
-                                       accel_lat_max,
-                                       curvature_max};
+    const VehicleLimits vehicle_limits{V_MAX,
+                                       V_MIN,
+                                       ACCEL_LON_MAX,
+                                       ACCEL_LAT_MAX,
+                                       CURVATURE_MAX};
 
     static constexpr double speed_lim_scale = 0.01;
     static constexpr double accel_lon_max_scale = 0.01;
     static constexpr double accel_lat_max_scale = 0.01;
     static constexpr double curvature_max_scale = 0.01;
 
-    static constexpr double speed_free_pos = 0.99 * speed_max;
-    static constexpr double speed_free_neg = 0.99 * speed_min;
-    static constexpr double accel_lon_free = 0.99 * accel_lon_max;
-    static constexpr double accel_lat_free = 0.99 * accel_lat_max;
-    static constexpr double curvature_free = 0.99 * curvature_max;
+    static constexpr double speed_free_pos = 0.99 * V_MAX;
+    static constexpr double speed_free_neg = 0.99 * V_MIN;
+    static constexpr double accel_lon_free = 0.99 * ACCEL_LON_MAX;
+    static constexpr double accel_lat_free = 0.99 * ACCEL_LAT_MAX;
+    static constexpr double curvature_free = 0.99 * CURVATURE_MAX;
 
     const VehicleLimitsParams vehicle_limits_params{speed_lim_scale,
                                                     speed_free_pos,

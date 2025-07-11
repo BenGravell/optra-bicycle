@@ -10,7 +10,7 @@
 #include "core/util.h"
 
 // TODO move to constants.h or make function arg.
-static constexpr double V_MIN = 0.01;
+static constexpr double V_ABS_MIN = 0.01;
 
 struct BoundaryCondition {
     const double x;
@@ -148,7 +148,7 @@ inline ActionSequence<N> steerCubic(const StateVector& start, const StateVector&
         // Compute actions.
         double accel = 0;
         double curvature = 0;
-        if (v > V_MIN) {
+        if (v > V_ABS_MIN) {
             // Nominal case.
             // Equations from differential flatness for kinematic bicycle.
             accel = (dxdt * d2xdt2 + dydt * d2ydt2) / v;
