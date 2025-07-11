@@ -19,10 +19,10 @@ static constexpr double obstacle_loss_weight = 10.0;
 
 // ---- SCENARIO: Bubbles.
 std::vector<Obstacle> obstacles = {
-    {{7.0, 0.0}, 1.5},
-    {{10.0, 0.5}, 1.0},
-    {{14.0, 1.0}, 1.2},
-    {{16.0, -1.0}, 1.2}};
+    {{14.0, 0.0}, 3.0},
+    {{20.0, 1.0}, 2.0},
+    {{28.0, 2.0}, 2.4},
+    {{32.0, -2.0}, 2.4}};
 
 // // ---- SCENARIO: Parking space.
 // static constexpr double gap = 3.0;

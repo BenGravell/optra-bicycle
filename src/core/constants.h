@@ -10,7 +10,7 @@ static const double LOG2 = std::log(2.0);
 // static constexpr double DEG2RAD = std::numbers::pi / 180.0;
 
 // TODO move to a config struct - VehicleLimits ?
-static constexpr double V_MAX = 5.0;
+static constexpr double V_MAX = 10.0;
 static constexpr double V_MIN = -V_MAX;
 
 // static constexpr double V_MAX = 40.0;   // ~90 mph
