@@ -31,21 +31,21 @@ std::mt19937 gen(42);  // Mersenne Twister engine w/ fixed seed
 static constexpr double DT = 0.1;
 
 // Time of a steering function trajectory, seconds
-static constexpr double steer_time = DT * TRAJ_LENGTH_STEER;
+static constexpr double STEER_TIME = DT * TRAJ_LENGTH_STEER;
 
 // Factor used to iteratively pull samples closer to nearest parent.
 // Should be in (0, 1), closer to 1 means less aggressive moves (precise search, more iterations)
-static constexpr double attract_factor = 0.6;
+static constexpr double ATTRACT_FACTOR = 0.6;
 
 // Depth of the tree.
 // Integer division is OK because TRAJ_LENGTH_OPT is an integer multiple of TRAJ_LENGTH_STEER.
-static constexpr int tree_depth = TRAJ_LENGTH_OPT / TRAJ_LENGTH_STEER;
+static constexpr int TREE_DEPTH = TRAJ_LENGTH_OPT / TRAJ_LENGTH_STEER;
 
-// Time index runs from 0 to tree_depth - 1 so that there are tree_depth such time indices.
-static constexpr int time_ix_max = tree_depth - 1;
+// Time index runs from 0 to TREE_DEPTH - 1 so that there are TREE_DEPTH such time indices.
+static constexpr int TIME_IX_MAX = TREE_DEPTH - 1;
 
 // Leave one time ix for goal node.
-static constexpr int time_ix_max_for_sampling = time_ix_max - 1;
+static constexpr int TIME_IX_MAX_FOR_SAMPLING = TIME_IX_MAX - 1;
 
 // Special function to efficiently compute the end state after using zero action for t seconds.
 // TODO move this to rollout or dynamics
@@ -88,7 +88,7 @@ inline double distanceHeuristic(const StateVector& start, const StateVector& goa
 // This is a good proxy for softLoss since acceleration is proportional to
 // distance-from-zap(start)-to-goal under simplifying kinematic assumptions e.g. @ high speed.
 inline double zapDistanceHeuristic(const StateVector& start, const StateVector& goal) {
-    return distanceHeuristic(rolloutZeroAction(start, steer_time), goal);
+    return distanceHeuristic(rolloutZeroAction(start, STEER_TIME), goal);
 }
 
 // Time-averaged acceleration magnitude.
@@ -113,7 +113,7 @@ struct SteerOutputs {
 
 inline SteerOutputs steer(const StateVector& start, const StateVector& goal, const bool constrain) {
     // Cubic polynomial steering.
-    const ActionSequence<TRAJ_LENGTH_STEER> action_sequence = steerCubic<TRAJ_LENGTH_STEER>(start, goal, steer_time);
+    const ActionSequence<TRAJ_LENGTH_STEER> action_sequence = steerCubic<TRAJ_LENGTH_STEER>(start, goal, STEER_TIME);
 
     // Rollout.
     const Dynamics dynamics{DT};
@@ -421,11 +421,11 @@ struct Tree {
         // TODO make this a method
         if (warm) {
             // Same time for all sub-nodes.
-            const double sub_total_time = warm->total_time / tree_depth;
+            const double sub_total_time = warm->total_time / TREE_DEPTH;
 
             // Break solution up into several smaller sub-nodes.
             std::shared_ptr<Node> sub_parent = root_node_ptr;
-            for (int time_ix = 0; time_ix < tree_depth; ++time_ix) {
+            for (int time_ix = 0; time_ix < TREE_DEPTH; ++time_ix) {
                 // Infer the indices into the whole solution for the current sub-node.
                 const int ix_offset = time_ix * TRAJ_LENGTH_STEER;
 
@@ -459,7 +459,7 @@ struct Tree {
 
             // Time index of sample.
             // Round-robin.
-            int time_ix = (last_time_ix + 1) % (time_ix_max_for_sampling + 1);
+            int time_ix = (last_time_ix + 1) % (TIME_IX_MAX_FOR_SAMPLING + 1);
             int num_rejected_samples_this_round = -1;
 
             while (!node_added) {
@@ -477,7 +477,7 @@ struct Tree {
                 static constexpr int max_num_rejected_samples_per_round = 10;
                 if (num_rejected_samples_this_round >= max_num_rejected_samples_per_round) {
                     // Reset the round-robin.
-                    last_time_ix = time_ix_max_for_sampling;
+                    last_time_ix = TIME_IX_MAX_FOR_SAMPLING;
                     time_ix = 0;
                     num_rejected_samples_this_round = 0;
                 }
@@ -502,9 +502,9 @@ struct Tree {
                 static constexpr double a_max = std::max(ACCEL_LON_MAX, ACCEL_LAT_MAX);
                 static constexpr double d_max_deviation_nominal = 0.5 * DT * DT * a_max;
                 static constexpr double d_max_deviation = d_max_deviation_factor * d_max_deviation_nominal;
-                StateVector zero_action_point = rolloutZeroAction(parent->state, steer_time);
+                StateVector zero_action_point = rolloutZeroAction(parent->state, STEER_TIME);
                 while (distanceHeuristic(state, zero_action_point) > d_max_deviation) {
-                    state = zero_action_point + attract_factor * (state - zero_action_point);
+                    state = zero_action_point + ATTRACT_FACTOR * (state - zero_action_point);
                 }
 
                 // Sampled state is in collision.
@@ -543,7 +543,7 @@ struct Tree {
                 }
 
                 // Create node from sampled state and add to the tree.
-                const Node node{state, parent, traj, cost, cost + parent->cost_to_come, steer_time, time_ix, next_node_ix};
+                const Node node{state, parent, traj, cost, cost + parent->cost_to_come, STEER_TIME, time_ix, next_node_ix};
                 addNode(std::make_shared<Node>(node));
                 next_node_ix++;
                 node_added = true;
@@ -559,7 +559,7 @@ struct Tree {
         // ---- Add node to steer to goal.
         // TODO make this a method
         {
-            const std::shared_ptr<Node> node_nearest_goal = getNearestCostToCome(goal, time_ix_max);
+            const std::shared_ptr<Node> node_nearest_goal = getNearestCostToCome(goal, TIME_IX_MAX);
             if (node_nearest_goal != nullptr) {
                 // Steer from parent to goal.
                 const bool constrain = true;
@@ -569,8 +569,8 @@ struct Tree {
                 const StateVector& state = traj.stateTerminal();
 
                 // Add node regardless of whether trajectory satisfies any constraints.
-                // This ensures the tree has at least one node with time_ix = time_ix_max.
-                const Node node{state, node_nearest_goal, traj, cost, cost + node_nearest_goal->cost_to_come, steer_time, time_ix_max, next_node_ix};
+                // This ensures the tree has at least one node with time_ix = TIME_IX_MAX.
+                const Node node{state, node_nearest_goal, traj, cost, cost + node_nearest_goal->cost_to_come, STEER_TIME, TIME_IX_MAX, next_node_ix};
                 addNode(std::make_shared<Node>(node));
                 next_node_ix++;
             }
@@ -578,7 +578,7 @@ struct Tree {
     }
 
     Path extractPathToGoal(const StateVector& goal) const {
-        int time_ix_for_path_extraction = time_ix_max + 1;
+        int time_ix_for_path_extraction = TIME_IX_MAX + 1;
         std::shared_ptr<Node> node_best = nullptr;
 
         // In the best case, we will get the goal node on the first iteration of this loop.

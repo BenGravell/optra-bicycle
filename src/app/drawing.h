@@ -8,6 +8,7 @@
 #include "core/interp.h"
 #include "core/problem.h"
 #include "core/rollout.h"
+#include "core/search_space.h"
 #include "core/space.h"
 #include "core/trajectory.h"
 #include "rrt/rrt.h"
@@ -43,7 +44,7 @@ void drawTree(const Tree& tree, const bool warm) {
 
         // Color by time index.
         const float line_width = 1.0;
-        const float c = static_cast<float>(node->time_ix) / static_cast<float>(time_ix_max);
+        const float c = static_cast<float>(node->time_ix) / static_cast<float>(TIME_IX_MAX);
         const Color color = Fade(warm ? warmColormap(c) : coolColormap(c), 0.2f);
 
         // Skip drawing traj for nodes with null parent (e.g. root node),
@@ -134,6 +135,8 @@ static constexpr int PLOT_WIDTH = 300;
 static constexpr int PLOT_HALF_HEIGHT = 100;
 static constexpr int TIME_PLOT_MARGIN_X = 10;
 static constexpr int TIME_PLOT_MARGIN_Y = 50;
+static constexpr int TIME_PLOT_TITLE_FONT_SIZE = 20;
+static constexpr int TIME_PLOT_TITLE_MARGIN_Y = TIME_PLOT_TITLE_FONT_SIZE + 10;
 
 void drawTimePlot(const TimePlotDataValues& vals, const double val_max, const double dt, const double total_time, const VisibilitySettings& viz_settings, const int ix_plot, const std::string& name, const Font font) {
     const int plot_x = TIME_PLOT_MARGIN_X + ix_plot * (PLOT_WIDTH + TIME_PLOT_MARGIN_X);
@@ -142,8 +145,10 @@ void drawTimePlot(const TimePlotDataValues& vals, const double val_max, const do
     // Draw border
     DrawRectangleLines(plot_x, plot_y, PLOT_WIDTH, PLOT_HALF_HEIGHT, GRAY);
     DrawRectangleLines(plot_x, plot_y + PLOT_HALF_HEIGHT, PLOT_WIDTH, PLOT_HALF_HEIGHT, GRAY);
+
+    // Draw title
     const std::string title = name + " vs Time";
-    DrawTextEx(font, title.c_str(), (Vector2){(float)plot_x, (float)plot_y - 20}, 18, 1, WHITE);
+    DrawTextEx(font, title.c_str(), (Vector2){(float)plot_x, (float)plot_y - TIME_PLOT_TITLE_MARGIN_Y}, TIME_PLOT_TITLE_FONT_SIZE, 1, WHITE);
 
     // Post-opt traj
     if (viz_settings.show_post_opt_traj) {

@@ -110,7 +110,7 @@ int main() {
     Rectangle show_pre_opt_traj_button = {button_x3, button_margin + 1 * (button_height + button_margin), button_width, button_height};
     Rectangle show_post_opt_traj_button = {button_x3, button_margin + 2 * (button_height + button_margin), button_width, button_height};
 
-    Rectangle search_space_rec = {ORIGIN_SS.x, ORIGIN_SS.y - 2 * SCALE_SS, 20 * SCALE_SS, 4 * SCALE_SS};
+    Rectangle search_space_rec = {ORIGIN_SS.x, ORIGIN_SS.y + (float)(Y_MIN * SCALE_SS), X_SIZE * SCALE_SS, Y_SIZE * SCALE_SS};
 
     // toggle-able states
     bool paused = false;
@@ -308,6 +308,14 @@ int main() {
         DrawRectangleRec(show_post_opt_traj_button, GRAY);
         DrawText(show_post_opt_traj ? "Hide post-opt traj" : "Show post-opt traj", show_post_opt_traj_button.x + 10, show_post_opt_traj_button.y + 15, 20, RAYWHITE);
 
+
+        // ---- Text stats
+        static constexpr int STATS_MARGIN = 10;
+        static constexpr int STATS_FONT_SIZE = 20;
+        static constexpr int STATS_ROW_HEIGHT = STATS_FONT_SIZE + STATS_MARGIN;
+        static constexpr int STATS_WIDTH = 300;
+
+
         // Draw the timer info
         if (tree_exp_clock_time < 0) {
             tree_exp_clock_time = planner_outputs.out.timing_info.tree_exp;
@@ -325,21 +333,24 @@ int main() {
         traj_opt_clock_time = static_cast<int>(lerp(planner_outputs.out.timing_info.traj_opt, traj_opt_clock_time, paused ? 0.0 : traj_opt_clock_momentum));
         draw_elm_clock_time = static_cast<int>(lerp(draw_elm_clock_time_next, draw_elm_clock_time, draw_elm_clock_momentum));
         game_upd_clock_time = static_cast<int>(lerp(static_cast<int>(1e6 * delta_time), game_upd_clock_time, game_upd_clock_momentum));
-        DrawTextEx(mono_font, TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)), (Vector2){10, 10 + 0 * 30}, 20, 1, WHITE);
-        DrawTextEx(mono_font, TextFormat("Traj opt: %5.1f ms", 0.001 * static_cast<double>(traj_opt_clock_time)), (Vector2){10, 10 + 1 * 30}, 20, 1, WHITE);
-        DrawTextEx(mono_font, TextFormat("Draw elm: %5.1f ms", 0.001 * static_cast<double>(draw_elm_clock_time)), (Vector2){10, 10 + 2 * 30}, 20, 1, LIGHTGRAY);
-        DrawTextEx(mono_font, TextFormat("Game upd: %5.1f ms", 0.001 * static_cast<double>(game_upd_clock_time)), (Vector2){10, 10 + 3 * 30}, 20, 1, LIGHTGRAY);
+
+        // Column 1
+        DrawTextEx(mono_font, TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WHITE);
+        DrawTextEx(mono_font, TextFormat("Traj opt: %5.1f ms", 0.001 * static_cast<double>(traj_opt_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WHITE);
+        DrawTextEx(mono_font, TextFormat("Draw elm: %5.1f ms", 0.001 * static_cast<double>(draw_elm_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, LIGHTGRAY);
+        DrawTextEx(mono_font, TextFormat("Game upd: %5.1f ms", 0.001 * static_cast<double>(game_upd_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, LIGHTGRAY);
 
         // Draw the planner stats
         const double v_avg = planner_outputs.out.solution.traj.state_sequence.row(3).cwiseAbs().mean();
-        DrawTextEx(mono_font, TextFormat("       Traj total time %5.3f s", planner_outputs.out.solution.total_time), (Vector2){10, 150 + 0 * 30}, 20, 1, MONOKAI_YELLOW);
-        DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){10, 150 + 1 * 30}, 20, 1, MONOKAI_YELLOW);
 
-        DrawTextEx(mono_font, TextFormat("Ratio rejected samples %5.0f%%", 100.0 * planner_outputs.out.tree.ratio_rejected_samples), (Vector2){10, 150 + 3 * 30}, 20, 1, MONOKAI_ORANGE);
-        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){10, 150 + 4 * 30}, 20, 1, MONOKAI_ORANGE);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, sol %9.6f", planner_outputs.out.solution.cost), (Vector2){10, 150 + 5 * 30}, 20, 1, WHITE);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){10, 150 + 6 * 30}, 20, 1, MONOKAI_RED);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, aux %9.6f", planner_outputs.aux.solution.cost), (Vector2){10, 150 + 7 * 30}, 20, 1, MONOKAI_BLUE);
+        // Column 2
+        DrawTextEx(mono_font, TextFormat("       Traj total time %5.3f s", planner_outputs.out.solution.total_time), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 0 * 30}, STATS_FONT_SIZE, 1, MONOKAI_YELLOW);
+        DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_YELLOW);
+        DrawTextEx(mono_font, TextFormat("Ratio rejected samples %5.0f%%", 100.0 * planner_outputs.out.tree.ratio_rejected_samples), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_ORANGE);
+        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, 20, 1, MONOKAI_ORANGE);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, sol %9.6f", planner_outputs.out.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 4 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WHITE);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 5 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_RED);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, aux %9.6f", planner_outputs.aux.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 6 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_BLUE);
 
         // Time plots.
         {

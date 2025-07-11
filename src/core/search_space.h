@@ -3,11 +3,13 @@
 #include "core/constants.h"
 #include "core/space.h"
 
-static constexpr double X_MAX = 20.0;
+static constexpr double X_MAX = 50.0;
 static constexpr double X_MIN = 0.0;
+static constexpr double X_SIZE = X_MAX - X_MIN;
 
-static constexpr double Y_MAX = 2.0;
+static constexpr double Y_MAX = 3.0;
 static constexpr double Y_MIN = -Y_MAX;
+static constexpr double Y_SIZE = Y_MAX - Y_MIN;
 
 static constexpr double YAW_MAX = 0.5 * PI;
 static constexpr double YAW_MIN = -YAW_MAX;

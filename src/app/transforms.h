@@ -3,20 +3,25 @@
 #include <raylib.h>
 
 #include "core/position.h"
+#include "core/search_space.h"
 #include "core/space.h"
 
-// Screen-space constants
-static constexpr int GUTTER_SS_X = 200;
+// Gutter sizes, px.
+static constexpr int GUTTER_SS_X = 100;
 static constexpr int GUTTER_SS_Y = 400;
 
-static constexpr int SCALE_SS = 80;
-static constexpr int ORIGIN_SS_X = GUTTER_SS_X;
-static constexpr int ORIGIN_SS_Y = GUTTER_SS_Y + 2 * SCALE_SS;
+// Scale factor from state space to screen space.
+// 1 meter in state space = SCALE_SS px in screen space.
+static constexpr int SCALE_SS = 40;
+
+// Origin in screen space.
+static constexpr int ORIGIN_SS_X = GUTTER_SS_X - X_MIN * SCALE_SS;
+static constexpr int ORIGIN_SS_Y = GUTTER_SS_Y - Y_MIN * SCALE_SS;
 const Vector2 ORIGIN_SS = {ORIGIN_SS_X, ORIGIN_SS_Y};
 
 // Screen dimensions, px.
-static constexpr int SCREEN_WIDTH = 2 * GUTTER_SS_X + 20 * SCALE_SS;
-static constexpr int SCREEN_HEIGHT = 2 * GUTTER_SS_Y + (2 + 2) * SCALE_SS;
+static constexpr int SCREEN_WIDTH = (2 * GUTTER_SS_X) + (X_SIZE * SCALE_SS);
+static constexpr int SCREEN_HEIGHT = (2 * GUTTER_SS_Y) + (Y_SIZE * SCALE_SS);
 
 inline Vector2 state2screen(const Vector2 state) {
     return {ORIGIN_SS.x + SCALE_SS * state.x, ORIGIN_SS.y + SCALE_SS * state.y};
