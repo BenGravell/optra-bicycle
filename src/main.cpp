@@ -35,12 +35,98 @@ struct VisibilitySettings {
 
 static constexpr int GAME_FPS = 30;
 
+void drawSeries(std::vector<double> vals, const double val_max, const double dt, const double total_time, const int plotX, const int plotY, const int plotWidth, const int plotHeight, const float line_width, const Color color) {
+    for (int i = 0; (i + 1) < vals.size(); i++) {
+        const float t0 = i * dt;
+        const float t1 = (i + 1) * dt;
+        const float val0 = vals[i];
+        const float val1 = vals[i + 1];
+
+        const float x0 = plotX + plotWidth * (t0 / total_time);
+        const float x1 = plotX + plotWidth * (t1 / total_time);
+        const float y0 = plotY + plotHeight * (1.0f - (val0 / val_max));
+        const float y1 = plotY + plotHeight * (1.0f - (val1 / val_max));
+
+        DrawLineEx((Vector2){x0, y0}, (Vector2){x1, y1}, line_width, color);
+    }
+}
+
+struct TimePlotDataValues {
+    std::vector<double> post_opt_traj;
+    std::vector<double> pre_opt_traj;
+};
+
+void drawTimePlot(const TimePlotDataValues& vals, const double val_max, const double dt, const double total_time, const VisibilitySettings& viz_settings, const int ix_plot, const std::string& name, const Font font) {
+    static constexpr int plot_width = 300;
+    static constexpr int plot_height = 100;
+    const int plot_x = 10 + ix_plot * (plot_width + 10);
+    const int plot_y = SCREEN_HEIGHT - (2 * plot_height) - 50;
+
+    // Draw border
+    DrawRectangleLines(plot_x, plot_y, plot_width, plot_height, GRAY);
+    DrawRectangleLines(plot_x, plot_y + plot_height, plot_width, plot_height, GRAY);
+    const std::string title = name + " vs Time";
+    DrawTextEx(font, title.c_str(), (Vector2){(float)plot_x, (float)plot_y - 20}, 18, 1, WHITE);
+
+    // Post-opt traj
+    if (viz_settings.show_post_opt_traj) {
+        static constexpr float line_width = 2.0f;
+        static constexpr Color color = COLOR_TRAJ_POST_OPT;
+        drawSeries(vals.post_opt_traj, val_max, dt, total_time, plot_x, plot_y, plot_width, plot_height, line_width, color);
+    }
+
+    // Pre-opt traj
+    if (viz_settings.show_pre_opt_traj) {
+        static constexpr float line_width = 1.0f;
+        static constexpr Color color = COLOR_TRAJ_PRE_OPT;
+        drawSeries(vals.pre_opt_traj, val_max, dt, total_time, plot_x, plot_y, plot_width, plot_height, line_width, color);
+    }
+}
+
+template <int N>
+std::vector<double> extractSpeed(const Trajectory<N>& traj) {
+    std::vector<double> vals;
+    for (const double val : traj.state_sequence.row(3)) {
+        vals.push_back(val);
+    }
+    return vals;
+}
+
+template <int N>
+std::vector<double> extractLonAccel(const Trajectory<N>& traj) {
+    std::vector<double> vals;
+    for (const double val : traj.action_sequence.row(0)) {
+        vals.push_back(val);
+    }
+    return vals;
+}
+
+template <int N>
+std::vector<double> extractLatAccel(const Trajectory<N>& traj) {
+    std::vector<double> vals;
+    for (int i = 0; i < traj.length; ++i) {
+        const double v = traj.stateAt(i)(3);
+        const double k = traj.actionAt(i)(1);
+        const double a = k * square(v);
+        vals.push_back(a);
+    }
+    return vals;
+}
+
+template <int N>
+std::vector<double> extractCurvature(const Trajectory<N>& traj) {
+    std::vector<double> vals;
+    for (const double val : traj.action_sequence.row(1)) {
+        vals.push_back(val);
+    }
+    return vals;
+}
+
 int main() {
     // Initialization
     SetConfigFlags(FLAG_VSYNC_HINT);
-    const int screenWidth = 2 * gutter_ss_x + 20 * scale_ss;
-    const int screenHeight = 2 * gutter_ss_y + (2 + 2) * scale_ss;
-    InitWindow(screenWidth, screenHeight, "Motion Planner");
+
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Motion Planner");
 
     // Clock times
     int tree_exp_clock_time = -1;
@@ -57,128 +143,128 @@ int main() {
     // Load a monospaced font
     Font monoFont = LoadFont("fonts/IBMPlexMono-Bold.ttf");
 
-    static const int buttonWidth = 300;
-    static const int buttonHeight = 50;
-    static const int buttonMargin = 10;
-    static const int buttonX1 = screenWidth - 2 * (buttonWidth + buttonMargin);
-    static const int buttonX2 = screenWidth - 1 * (buttonWidth + buttonMargin);
+    static const int button_width = 300;
+    static const int button_height = 50;
+    static const int button_margin = 10;
+    static const int button_x1 = SCREEN_WIDTH - 2 * (button_width + button_margin);
+    static const int button_x2 = SCREEN_WIDTH - 1 * (button_width + button_margin);
 
-    Rectangle pauseButton = {buttonX1, buttonMargin + 0 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
-    Rectangle advanceButton = {buttonX1, buttonMargin + 1 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
-    Rectangle useWarmStartButton = {buttonX1, buttonMargin + 2 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
-    Rectangle useExplorationTreeButton = {buttonX1, buttonMargin + 3 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
-    Rectangle useActionJitterButton = {buttonX1, buttonMargin + 4 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
+    Rectangle pause_button = {button_x1, button_margin + 0 * (button_height + button_margin), button_width, button_height};
+    Rectangle advance_button = {button_x1, button_margin + 1 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_warm_start_button = {button_x1, button_margin + 2 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_exploration_tree_button = {button_x1, button_margin + 3 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_action_jitter_button = {button_x1, button_margin + 4 * (button_height + button_margin), button_width, button_height};
 
-    Rectangle showTreeButton = {buttonX2, buttonMargin + 0 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
-    Rectangle showPreOptTrajButton = {buttonX2, buttonMargin + 1 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
-    Rectangle showPostOptTrajButton = {buttonX2, buttonMargin + 2 * (buttonHeight + buttonMargin), buttonWidth, buttonHeight};
+    Rectangle show_tree_button = {button_x2, button_margin + 0 * (button_height + button_margin), button_width, button_height};
+    Rectangle show_pre_opt_traj_button = {button_x2, button_margin + 1 * (button_height + button_margin), button_width, button_height};
+    Rectangle show_post_opt_traj_button = {button_x2, button_margin + 2 * (button_height + button_margin), button_width, button_height};
 
-    Rectangle searchSpaceRec = {origin_ss.x, origin_ss.y - 2 * scale_ss, 20 * scale_ss, 4 * scale_ss};
+    Rectangle search_space_rec = {ORIGIN_SS.x, ORIGIN_SS.y - 2 * SCALE_SS, 20 * SCALE_SS, 4 * SCALE_SS};
 
     bool paused = false;  // Game pause state
-    bool useWarmStart = true;
-    bool useExplorationTree = true;
-    bool useActionJitter = true;
+    bool use_warm_start = true;
+    bool use_exploration_tree = true;
+    bool use_action_jitter = true;
 
-    bool showTree = true;
-    bool showPreOptTraj = true;
-    bool showPostOptTraj = true;
+    bool show_tree = true;
+    bool show_pre_opt_traj = true;
+    bool show_post_opt_traj = true;
 
     // Define a fixed start point and an initial goal point in state space
     const StateVector start{1.0, 0.0, 0.0, 0.0};
     const StateVector goal{19.0, 0.0, 0.0, 0.0};
 
     // Convert to screen space
-    Vector2 startPoint = state2screen(start);
-    Vector2 goalPoint = state2screen(goal);
+    Vector2 start_point = state2screen(start);
+    Vector2 goal_point = state2screen(goal);
 
     // Initial plan
     MultiPlannerOutputs planner_outputs;
-    const MultiPlannerSettings planner_settings = {useWarmStart, useExplorationTree, useActionJitter};
+    const MultiPlannerSettings planner_settings = {use_warm_start, use_exploration_tree, use_action_jitter};
     planner_outputs = MultiPlanner::plan(planner_settings, start, goal, std::nullopt);
 
     SetTargetFPS(GAME_FPS);
 
-    float lastTime = GetTime();
+    float last_time = GetTime();
 
     while (!WindowShouldClose()) {
         // Calculate delta time
-        const float currentTime = GetTime();
-        const float deltaTime = currentTime - lastTime;
-        lastTime = currentTime;
+        const float current_time = GetTime();
+        const float delta_time = current_time - last_time;
+        last_time = current_time;
 
-        const Vector2 mousePoint = GetMousePosition();
+        const Vector2 mouse_point = GetMousePosition();
 
         // check button hitboxes
-        const bool mouseInPauseButton = CheckCollisionPointRec(mousePoint, pauseButton);
-        const bool mouseInAdvanceButton = CheckCollisionPointRec(mousePoint, advanceButton);
-        const bool mouseInUseWarmStartButton = CheckCollisionPointRec(mousePoint, useWarmStartButton);
-        const bool mouseInUseExplorationTreeButton = CheckCollisionPointRec(mousePoint, useExplorationTreeButton);
-        const bool mouseInUseActionJitterButton = CheckCollisionPointRec(mousePoint, useActionJitterButton);
+        const bool mouse_in_pause_button = CheckCollisionPointRec(mouse_point, pause_button);
+        const bool mouse_in_advance_button = CheckCollisionPointRec(mouse_point, advance_button);
+        const bool mouse_in_use_warm_start_button = CheckCollisionPointRec(mouse_point, use_warm_start_button);
+        const bool mouse_in_use_exploration_tree_button = CheckCollisionPointRec(mouse_point, use_exploration_tree_button);
+        const bool mouse_in_use_action_jitter_button = CheckCollisionPointRec(mouse_point, use_action_jitter_button);
 
-        const bool mouseInShowTreeButton = CheckCollisionPointRec(mousePoint, showTreeButton);
-        const bool mouseInShowPreOptTrajButton = CheckCollisionPointRec(mousePoint, showPreOptTrajButton);
-        const bool mouseInShowPostOptTrajButton = CheckCollisionPointRec(mousePoint, showPostOptTrajButton);
+        const bool mouse_in_show_tree_button = CheckCollisionPointRec(mouse_point, show_tree_button);
+        const bool mouse_in_show_pre_opt_traj_button = CheckCollisionPointRec(mouse_point, show_pre_opt_traj_button);
+        const bool mouse_in_show_post_opt_traj_button = CheckCollisionPointRec(mouse_point, show_post_opt_traj_button);
 
-        // check if mouse is in a button
-        const bool mouseInButton = mouseInPauseButton || mouseInAdvanceButton || mouseInUseWarmStartButton || mouseInUseActionJitterButton || mouseInUseExplorationTreeButton || mouseInShowTreeButton || mouseInShowPreOptTrajButton || mouseInShowPostOptTrajButton;
+        // check if mouse is in any button
+        const bool mouse_in_button = mouse_in_pause_button || mouse_in_advance_button || mouse_in_use_warm_start_button || mouse_in_use_action_jitter_button || mouse_in_use_exploration_tree_button || mouse_in_show_tree_button || mouse_in_show_pre_opt_traj_button || mouse_in_show_post_opt_traj_button;
 
         // update toggle states
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInPauseButton) {
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_pause_button) {
             paused = !paused;
         }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInUseWarmStartButton) {
-            useWarmStart = !useWarmStart;
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_warm_start_button) {
+            use_warm_start = !use_warm_start;
         }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInUseExplorationTreeButton) {
-            useExplorationTree = !useExplorationTree;
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_exploration_tree_button) {
+            use_exploration_tree = !use_exploration_tree;
         }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInUseActionJitterButton) {
-            useActionJitter = !useActionJitter;
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_action_jitter_button) {
+            use_action_jitter = !use_action_jitter;
         }
 
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInShowTreeButton) {
-            showTree = !showTree;
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_show_tree_button) {
+            show_tree = !show_tree;
         }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInShowPreOptTrajButton) {
-            showPreOptTraj = !showPreOptTraj;
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_show_pre_opt_traj_button) {
+            show_pre_opt_traj = !show_pre_opt_traj;
         }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInShowPostOptTrajButton) {
-            showPostOptTraj = !showPostOptTraj;
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_show_post_opt_traj_button) {
+            show_post_opt_traj = !show_post_opt_traj;
         }
 
         // check for explicit advance
-        const bool explicitAdvance = IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouseInAdvanceButton;
+        const bool explicit_advance = IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_advance_button;
 
         // update goal point from mouse
-        if (IsMouseButtonDown(MOUSE_LEFT_BUTTON) && !mouseInButton) {
-            goalPoint = mousePoint;
+        if (IsMouseButtonDown(MOUSE_LEFT_BUTTON) && !mouse_in_button) {
+            goal_point = mouse_point;
         }
 
         // update start point from mouse
-        if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON) && !mouseInButton) {
+        if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON) && !mouse_in_button) {
             // Guard for start point inside obstacle
-            if (!obstaclesCollidesWith(obstacles, screen2state(mousePoint))) {
-                startPoint = mousePoint;
+            if (!obstaclesCollidesWith(obstacles, screen2state(mouse_point))) {
+                start_point = mouse_point;
             }
         }
 
         // Convert from screen space to state space
-        StateVector start = screen2state(startPoint);
-        StateVector goal = screen2state(goalPoint);
+        StateVector start = screen2state(start_point);
+        StateVector goal = screen2state(goal_point);
 
         // Clamp to search space bounds
         start = clampToSearchSpace(start);
         goal = clampToSearchSpace(goal);
 
         // Convert back from state space to screen space
-        startPoint = state2screen(start);
-        goalPoint = state2screen(goal);
+        start_point = state2screen(start);
+        goal_point = state2screen(goal);
 
         // Update game state.
-        const bool do_update_game = !paused || explicitAdvance;
+        const bool do_update_game = !paused || explicit_advance;
         if (do_update_game) {
-            const MultiPlannerSettings planner_settings = {useWarmStart, useExplorationTree, useActionJitter};
+            const MultiPlannerSettings planner_settings = {use_warm_start, use_exploration_tree, use_action_jitter};
             const auto warm = std::make_optional(planner_outputs.out.solution);
             planner_outputs = MultiPlanner::plan(planner_settings, start, goal, warm);
         }
@@ -189,24 +275,24 @@ int main() {
         ClearBackground(COLOR_BACKGROUND);
 
         // Draw the search space
-        DrawRectangleRec(searchSpaceRec, COLOR_SEARCH_SPACE);
+        DrawRectangleRec(search_space_rec, COLOR_SEARCH_SPACE);
 
         // Draw the obstacle
         for (const Obstacle& obstacle : obstacles) {
-            const Vector2 obstacleCenterSS = state2screen(obstacle.center);
-            const double obstacleRadiusSS = obstacle.radius * scale_ss;
-            DrawCircleV(obstacleCenterSS, obstacleRadiusSS, COLOR_OBSTACLE);
+            const Vector2 obstacle_center_ss = state2screen(obstacle.center);
+            const double obstacle_radius_ss = obstacle.radius * SCALE_SS;
+            DrawCircleV(obstacle_center_ss, obstacle_radius_ss, COLOR_OBSTACLE);
         }
 
         // Draw planner outputs.
-        const VisibilitySettings viz_settings{showTree, showPreOptTraj, showPostOptTraj};
+        const VisibilitySettings viz_settings{show_tree, show_pre_opt_traj, show_post_opt_traj};
 
         // Draw tree(s).
         if (viz_settings.show_tree) {
-            if (useExplorationTree) {
+            if (use_exploration_tree) {
                 drawTree(planner_outputs.aux.tree, false);
             }
-            if (useWarmStart) {
+            if (use_warm_start) {
                 drawTree(planner_outputs.pri.tree, true);
             }
         }
@@ -227,48 +313,48 @@ int main() {
         }
 
         // Draw start point and the goal point
-        DrawSquare(startPoint, 10, WHITE);
-        DrawSquare(startPoint, 6, BLACK);
+        DrawSquare(start_point, 10, WHITE);
+        DrawSquare(start_point, 6, BLACK);
 
-        DrawStar(goalPoint, 16, WHITE);
-        DrawStar(goalPoint, 8, BLACK);
+        DrawStar(goal_point, 16, WHITE);
+        DrawStar(goal_point, 8, BLACK);
 
         if (paused) {
             // Show pause overlay
-            DrawText("Paused", (screenWidth / 2) - (MeasureText("Paused", 20) / 2), (gutter_ss_y / 2) - (20 / 2), 20, WHITE);
+            DrawText("Paused", (SCREEN_WIDTH / 2) - (MeasureText("Paused", 20) / 2), (GUTTER_SS_Y / 2) - (20 / 2), 20, WHITE);
         }
 
         // Draw pause button
-        DrawRectangleRec(pauseButton, GRAY);
-        DrawText(paused ? "Resume" : "Pause", pauseButton.x + 10, pauseButton.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(pause_button, GRAY);
+        DrawText(paused ? "Resume" : "Pause", pause_button.x + 10, pause_button.y + 15, 20, RAYWHITE);
 
         // Draw advance button
-        DrawRectangleRec(advanceButton, GRAY);
-        DrawText("Advance", advanceButton.x + 10, advanceButton.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(advance_button, GRAY);
+        DrawText("Advance", advance_button.x + 10, advance_button.y + 15, 20, RAYWHITE);
 
         // Draw use-warm-start button
-        DrawRectangleRec(useWarmStartButton, GRAY);
-        DrawText(useWarmStart ? "Disable warm-start tree" : "Enable warm-start tree", useWarmStartButton.x + 10, useWarmStartButton.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(use_warm_start_button, GRAY);
+        DrawText(use_warm_start ? "Disable warm-start tree" : "Enable warm-start tree", use_warm_start_button.x + 10, use_warm_start_button.y + 15, 20, RAYWHITE);
 
         // Draw use-exploration-tree button
-        DrawRectangleRec(useExplorationTreeButton, GRAY);
-        DrawText(useExplorationTree ? "Disable cold-start tree" : "Enable cold-start tree", useExplorationTreeButton.x + 10, useExplorationTreeButton.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(use_exploration_tree_button, GRAY);
+        DrawText(use_exploration_tree ? "Disable cold-start tree" : "Enable cold-start tree", use_exploration_tree_button.x + 10, use_exploration_tree_button.y + 15, 20, RAYWHITE);
 
         // Draw use-action-jitter button
-        DrawRectangleRec(useActionJitterButton, GRAY);
-        DrawText(useActionJitter ? "Disable action jitter" : "Enable action jitter", useActionJitterButton.x + 10, useActionJitterButton.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(use_action_jitter_button, GRAY);
+        DrawText(use_action_jitter ? "Disable action jitter" : "Enable action jitter", use_action_jitter_button.x + 10, use_action_jitter_button.y + 15, 20, RAYWHITE);
 
         // Draw show-tree button
-        DrawRectangleRec(showTreeButton, GRAY);
-        DrawText(showTree ? "Hide tree" : "Show tree", showTreeButton.x + 10, showTreeButton.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(show_tree_button, GRAY);
+        DrawText(show_tree ? "Hide tree" : "Show tree", show_tree_button.x + 10, show_tree_button.y + 15, 20, RAYWHITE);
 
         // Draw show-pre-opt-traj button
-        DrawRectangleRec(showPreOptTrajButton, GRAY);
-        DrawText(showPreOptTraj ? "Hide pre-opt traj" : "Show pre-opt traj", showPreOptTrajButton.x + 10, showPreOptTrajButton.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(show_pre_opt_traj_button, GRAY);
+        DrawText(show_pre_opt_traj ? "Hide pre-opt traj" : "Show pre-opt traj", show_pre_opt_traj_button.x + 10, show_pre_opt_traj_button.y + 15, 20, RAYWHITE);
 
         // Draw show-post-opt-traj button
-        DrawRectangleRec(showPostOptTrajButton, GRAY);
-        DrawText(showPostOptTraj ? "Hide post-opt traj" : "Show post-opt traj", showPostOptTrajButton.x + 10, showPostOptTrajButton.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(show_post_opt_traj_button, GRAY);
+        DrawText(show_post_opt_traj ? "Hide post-opt traj" : "Show post-opt traj", show_post_opt_traj_button.x + 10, show_post_opt_traj_button.y + 15, 20, RAYWHITE);
 
         // Draw the timer info
         if (tree_exp_clock_time < 0) {
@@ -281,12 +367,12 @@ int main() {
             draw_elm_clock_time = draw_elm_clock_time_next;
         }
         if (game_upd_clock_time < 0) {
-            game_upd_clock_time = static_cast<int>(1e6 * deltaTime);
+            game_upd_clock_time = static_cast<int>(1e6 * delta_time);
         }
         tree_exp_clock_time = static_cast<int>(lerp(planner_outputs.out.timing_info.tree_exp, tree_exp_clock_time, paused ? 0.0 : tree_exp_clock_momentum));
         traj_opt_clock_time = static_cast<int>(lerp(planner_outputs.out.timing_info.traj_opt, traj_opt_clock_time, paused ? 0.0 : traj_opt_clock_momentum));
         draw_elm_clock_time = static_cast<int>(lerp(draw_elm_clock_time_next, draw_elm_clock_time, draw_elm_clock_momentum));
-        game_upd_clock_time = static_cast<int>(lerp(static_cast<int>(1e6 * deltaTime), game_upd_clock_time, game_upd_clock_momentum));
+        game_upd_clock_time = static_cast<int>(lerp(static_cast<int>(1e6 * delta_time), game_upd_clock_time, game_upd_clock_momentum));
         DrawTextEx(monoFont, TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)), (Vector2){10, 10 + 0 * 30}, 20, 1, WHITE);
         DrawTextEx(monoFont, TextFormat("Traj opt: %5.1f ms", 0.001 * static_cast<double>(traj_opt_clock_time)), (Vector2){10, 10 + 1 * 30}, 20, 1, WHITE);
         DrawTextEx(monoFont, TextFormat("Draw elm: %5.1f ms", 0.001 * static_cast<double>(draw_elm_clock_time)), (Vector2){10, 10 + 2 * 30}, 20, 1, LIGHTGRAY);
@@ -303,172 +389,32 @@ int main() {
         DrawTextEx(monoFont, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){10, 150 + 6 * 30}, 20, 1, MONOKAI_RED);
         DrawTextEx(monoFont, TextFormat("    Post-opt cost, aux %9.6f", planner_outputs.aux.solution.cost), (Vector2){10, 150 + 7 * 30}, 20, 1, MONOKAI_BLUE);
 
-        // ---- Speed vs Time plot
+        // Time plots.
         {
-            const int plotWidth = 300;
-            const int plotHeight = 100;
-            const int plotX = 10 + 0 * (plotWidth + 10);
-            const int plotY = screenHeight - (2 * plotHeight) - 50;
-
-            // Draw border
-            DrawRectangleLines(plotX, plotY, plotWidth, plotHeight, GRAY);
-            DrawRectangleLines(plotX, plotY + plotHeight, plotWidth, plotHeight, GRAY);
-            DrawTextEx(monoFont, "Speed vs Time", (Vector2){plotX, plotY - 20}, 18, 1, WHITE);
-
-            const Trajectory<TRAJ_LENGTH_OPT>& traj = planner_outputs.out.solution.traj;
+            // Common data.
+            const Trajectory<TRAJ_LENGTH_OPT>& traj_pre_opt = planner_outputs.out.traj_pre_opt;
+            const Trajectory<TRAJ_LENGTH_OPT>& traj_post_opt = planner_outputs.out.solution.traj;
             const double total_time = planner_outputs.out.solution.total_time;
-            const double dt = total_time / traj.length;
+            const double dt = total_time / traj_post_opt.length;
 
-            // const double max_speed = traj.state_sequence.row(3).cwiseAbs().maxCoeff();
-            const double max_speed = 5.0;
+            // Speed data
+            const TimePlotDataValues speed_time_plot_data_vals = {extractSpeed(traj_post_opt), extractSpeed(traj_pre_opt)};
 
-            // Plot the data
+            // Lon accel data
+            const TimePlotDataValues lon_accel_time_plot_data_vals = {extractLonAccel(traj_post_opt), extractLonAccel(traj_pre_opt)};
 
-            // Post-opt traj
-            if (showPostOptTraj) {
-                for (int i = 0; i < traj.length; i++) {
-                    float t0 = i * dt;
-                    float t1 = (i + 1) * dt;
-                    float v0 = traj.state_sequence(3, i);
-                    float v1 = traj.state_sequence(3, i + 1);
+            // Lat accel data
+            const TimePlotDataValues lat_accel_time_plot_data_vals = {extractLatAccel(traj_post_opt), extractLatAccel(traj_pre_opt)};
 
-                    float x0 = plotX + plotWidth * (t0 / total_time);
-                    float x1 = plotX + plotWidth * (t1 / total_time);
-                    float y0 = plotY + plotHeight * (1.0f - (v0 / max_speed));
-                    float y1 = plotY + plotHeight * (1.0f - (v1 / max_speed));
+            // Curvature data
+            const TimePlotDataValues curvature_time_plot_data_vals = {extractCurvature(traj_post_opt), extractCurvature(traj_pre_opt)};
 
-                    DrawLineEx((Vector2){x0, y0}, (Vector2){x1, y1}, 2.0f, COLOR_TRAJ_POST_OPT);
-                }
-            }
+            // TODO add plot title string as arg for drawTimePlot
 
-            // Pre-opt traj
-            if (showPreOptTraj) {
-                for (int i = 0; i < planner_outputs.out.traj_pre_opt.length; i++) {
-                    float t0 = i * dt;
-                    float t1 = (i + 1) * dt;
-                    float v0 = planner_outputs.out.traj_pre_opt.state_sequence(3, i);
-                    float v1 = planner_outputs.out.traj_pre_opt.state_sequence(3, i + 1);
-
-                    float x0 = plotX + plotWidth * (t0 / total_time);
-                    float x1 = plotX + plotWidth * (t1 / total_time);
-                    float y0 = plotY + plotHeight * (1.0f - (v0 / max_speed));
-                    float y1 = plotY + plotHeight * (1.0f - (v1 / max_speed));
-
-                    DrawLineEx((Vector2){x0, y0}, (Vector2){x1, y1}, 1.0f, COLOR_TRAJ_PRE_OPT);
-                }
-            }
-        }
-
-        // ---- Lon accel vs Time plot
-        {
-            const int plotWidth = 300;
-            const int plotHeight = 100;
-            const int plotX = 10 + 1 * (plotWidth + 10);
-            const int plotY = screenHeight - (2 * plotHeight) - 50;
-
-            // Draw border
-            DrawRectangleLines(plotX, plotY, plotWidth, plotHeight, GRAY);
-            DrawRectangleLines(plotX, plotY + plotHeight, plotWidth, plotHeight, GRAY);
-            DrawTextEx(monoFont, "Lon Accel vs Time", (Vector2){plotX, plotY - 20}, 18, 1, WHITE);
-
-            const Trajectory<TRAJ_LENGTH_OPT>& traj = planner_outputs.out.solution.traj;
-            const double total_time = planner_outputs.out.solution.total_time;
-            const double dt = total_time / traj.length;
-
-            // Plot the data
-
-            // Post-opt traj
-            if (showPostOptTraj) {
-                for (int i = 0; i < traj.length; i++) {
-                    float t0 = i * dt;
-                    float t1 = (i + 1) * dt;
-                    float a0 = traj.action_sequence(0, i);
-                    float a1 = traj.action_sequence(0, i + 1);
-
-                    float x0 = plotX + plotWidth * (t0 / total_time);
-                    float x1 = plotX + plotWidth * (t1 / total_time);
-                    float y0 = plotY + plotHeight * (1.0f - (a0 / accel_lon_max));
-                    float y1 = plotY + plotHeight * (1.0f - (a1 / accel_lon_max));
-
-                    DrawLineEx((Vector2){x0, y0}, (Vector2){x1, y1}, 2.0f, COLOR_TRAJ_POST_OPT);
-                }
-            }
-        }
-
-        // ---- Lat accel vs Time plot
-        {
-            const int plotWidth = 300;
-            const int plotHeight = 100;
-            const int plotX = 10 + 2 * (plotWidth + 10);
-            const int plotY = screenHeight - (2 * plotHeight) - 50;
-
-            // Draw border
-            DrawRectangleLines(plotX, plotY, plotWidth, plotHeight, GRAY);
-            DrawRectangleLines(plotX, plotY + plotHeight, plotWidth, plotHeight, GRAY);
-            DrawTextEx(monoFont, "Lat Accel vs Time", (Vector2){plotX, plotY - 20}, 18, 1, WHITE);
-
-            const Trajectory<TRAJ_LENGTH_OPT>& traj = planner_outputs.out.solution.traj;
-            const double total_time = planner_outputs.out.solution.total_time;
-            const double dt = total_time / traj.length;
-
-            // Plot the data
-
-            // Post-opt traj
-            if (showPostOptTraj) {
-                for (int i = 0; i < traj.length; i++) {
-                    float t0 = i * dt;
-                    float t1 = (i + 1) * dt;
-                    float v0 = planner_outputs.out.traj_pre_opt.state_sequence(3, i);
-                    float v1 = planner_outputs.out.traj_pre_opt.state_sequence(3, i + 1);
-                    float k0 = traj.action_sequence(1, i);
-                    float k1 = traj.action_sequence(1, i + 1);
-                    float a0 = k0 * square(v0);
-                    float a1 = k1 * square(v1);
-
-                    float x0 = plotX + plotWidth * (t0 / total_time);
-                    float x1 = plotX + plotWidth * (t1 / total_time);
-                    float y0 = plotY + plotHeight * (1.0f - (a0 / accel_lat_max));
-                    float y1 = plotY + plotHeight * (1.0f - (a1 / accel_lat_max));
-
-                    DrawLineEx((Vector2){x0, y0}, (Vector2){x1, y1}, 2.0f, COLOR_TRAJ_POST_OPT);
-                }
-            }
-        }
-
-        // ---- Curvature vs Time plot
-        {
-            const int plotWidth = 300;
-            const int plotHeight = 100;
-            const int plotX = 10 + 3 * (plotWidth + 10);
-            const int plotY = screenHeight - (2 * plotHeight) - 50;
-
-            // Draw border
-            DrawRectangleLines(plotX, plotY, plotWidth, plotHeight, GRAY);
-            DrawRectangleLines(plotX, plotY + plotHeight, plotWidth, plotHeight, GRAY);
-            DrawTextEx(monoFont, "Curvature vs Time", (Vector2){plotX, plotY - 20}, 18, 1, WHITE);
-
-            const Trajectory<TRAJ_LENGTH_OPT>& traj = planner_outputs.out.solution.traj;
-            const double total_time = planner_outputs.out.solution.total_time;
-            const double dt = total_time / traj.length;
-
-            // Plot the data
-
-            // Post-opt traj
-            if (showPostOptTraj) {
-                for (int i = 0; i < traj.length; i++) {
-                    float t0 = i * dt;
-                    float t1 = (i + 1) * dt;
-                    float k0 = traj.action_sequence(1, i);
-                    float k1 = traj.action_sequence(1, i + 1);
-
-                    float x0 = plotX + plotWidth * (t0 / total_time);
-                    float x1 = plotX + plotWidth * (t1 / total_time);
-                    float y0 = plotY + plotHeight * (1.0f - (k0 / curvature_max));
-                    float y1 = plotY + plotHeight * (1.0f - (k1 / curvature_max));
-
-                    DrawLineEx((Vector2){x0, y0}, (Vector2){x1, y1}, 2.0f, COLOR_TRAJ_POST_OPT);
-                }
-            }
+            drawTimePlot(speed_time_plot_data_vals, v_max, dt, total_time, viz_settings, 0, "Speed", monoFont);
+            drawTimePlot(lon_accel_time_plot_data_vals, accel_lon_max, dt, total_time, viz_settings, 1, "Lon Accel", monoFont);
+            drawTimePlot(lat_accel_time_plot_data_vals, accel_lat_max, dt, total_time, viz_settings, 2, "Lat Accel", monoFont);
+            drawTimePlot(curvature_time_plot_data_vals, curvature_max, dt, total_time, viz_settings, 3, "Curvature", monoFont);
         }
 
         const float draw_elm_clock_stop = GetTime();

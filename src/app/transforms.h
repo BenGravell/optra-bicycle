@@ -6,16 +6,20 @@
 #include "core/space.h"
 
 // Screen-space constants
-static constexpr int gutter_ss_x = 200;
-static constexpr int gutter_ss_y = 400;
+static constexpr int GUTTER_SS_X = 200;
+static constexpr int GUTTER_SS_Y = 400;
 
-static constexpr int scale_ss = 80;
-static constexpr int origin_ss_x = gutter_ss_x;
-static constexpr int origin_ss_y = gutter_ss_y + 2 * scale_ss;
-const Vector2 origin_ss = {origin_ss_x, origin_ss_y};
+static constexpr int SCALE_SS = 80;
+static constexpr int ORIGIN_SS_X = GUTTER_SS_X;
+static constexpr int ORIGIN_SS_Y = GUTTER_SS_Y + 2 * SCALE_SS;
+const Vector2 ORIGIN_SS = {ORIGIN_SS_X, ORIGIN_SS_Y};
+
+// Screen dimensions, px.
+static constexpr int SCREEN_WIDTH = 2 * GUTTER_SS_X + 20 * SCALE_SS;
+static constexpr int SCREEN_HEIGHT = 2 * GUTTER_SS_Y + (2 + 2) * SCALE_SS;
 
 inline Vector2 state2screen(const Vector2 state) {
-    return {origin_ss.x + scale_ss * state.x, origin_ss.y + scale_ss * state.y};
+    return {ORIGIN_SS.x + SCALE_SS * state.x, ORIGIN_SS.y + SCALE_SS * state.y};
 }
 
 inline Vector2 state2screen(const Position state) {
@@ -29,5 +33,5 @@ inline Vector2 state2screen(const StateVector state) {
 }
 
 inline StateVector screen2state(const Vector2 point) {
-    return {(point.x - origin_ss.x) / scale_ss, (point.y - origin_ss.y) / scale_ss, 0.0, 0.0};
+    return {(point.x - ORIGIN_SS.x) / SCALE_SS, (point.y - ORIGIN_SS.y) / SCALE_SS, 0.0, 0.0};
 }
