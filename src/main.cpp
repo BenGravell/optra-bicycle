@@ -87,7 +87,7 @@ int main() {
     int draw_elm_clock_time_next = 0;
 
     // Load a monospaced font
-    Font monoFont = LoadFont("fonts/IBMPlexMono-Bold.ttf");
+    Font mono_font = LoadFont("fonts/IBMPlexMono-Bold.ttf");
 
     static const int button_width = 300;
     static const int button_height = 50;
@@ -325,21 +325,21 @@ int main() {
         traj_opt_clock_time = static_cast<int>(lerp(planner_outputs.out.timing_info.traj_opt, traj_opt_clock_time, paused ? 0.0 : traj_opt_clock_momentum));
         draw_elm_clock_time = static_cast<int>(lerp(draw_elm_clock_time_next, draw_elm_clock_time, draw_elm_clock_momentum));
         game_upd_clock_time = static_cast<int>(lerp(static_cast<int>(1e6 * delta_time), game_upd_clock_time, game_upd_clock_momentum));
-        DrawTextEx(monoFont, TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)), (Vector2){10, 10 + 0 * 30}, 20, 1, WHITE);
-        DrawTextEx(monoFont, TextFormat("Traj opt: %5.1f ms", 0.001 * static_cast<double>(traj_opt_clock_time)), (Vector2){10, 10 + 1 * 30}, 20, 1, WHITE);
-        DrawTextEx(monoFont, TextFormat("Draw elm: %5.1f ms", 0.001 * static_cast<double>(draw_elm_clock_time)), (Vector2){10, 10 + 2 * 30}, 20, 1, LIGHTGRAY);
-        DrawTextEx(monoFont, TextFormat("Game upd: %5.1f ms", 0.001 * static_cast<double>(game_upd_clock_time)), (Vector2){10, 10 + 3 * 30}, 20, 1, LIGHTGRAY);
+        DrawTextEx(mono_font, TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)), (Vector2){10, 10 + 0 * 30}, 20, 1, WHITE);
+        DrawTextEx(mono_font, TextFormat("Traj opt: %5.1f ms", 0.001 * static_cast<double>(traj_opt_clock_time)), (Vector2){10, 10 + 1 * 30}, 20, 1, WHITE);
+        DrawTextEx(mono_font, TextFormat("Draw elm: %5.1f ms", 0.001 * static_cast<double>(draw_elm_clock_time)), (Vector2){10, 10 + 2 * 30}, 20, 1, LIGHTGRAY);
+        DrawTextEx(mono_font, TextFormat("Game upd: %5.1f ms", 0.001 * static_cast<double>(game_upd_clock_time)), (Vector2){10, 10 + 3 * 30}, 20, 1, LIGHTGRAY);
 
         // Draw the planner stats
         const double v_avg = planner_outputs.out.solution.traj.state_sequence.row(3).cwiseAbs().mean();
-        DrawTextEx(monoFont, TextFormat("       Traj total time %5.3f s", planner_outputs.out.solution.total_time), (Vector2){10, 150 + 0 * 30}, 20, 1, MONOKAI_YELLOW);
-        DrawTextEx(monoFont, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){10, 150 + 1 * 30}, 20, 1, MONOKAI_YELLOW);
+        DrawTextEx(mono_font, TextFormat("       Traj total time %5.3f s", planner_outputs.out.solution.total_time), (Vector2){10, 150 + 0 * 30}, 20, 1, MONOKAI_YELLOW);
+        DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){10, 150 + 1 * 30}, 20, 1, MONOKAI_YELLOW);
 
-        DrawTextEx(monoFont, TextFormat("Ratio rejected samples %5.0f%%", 100.0 * planner_outputs.out.tree.ratio_rejected_samples), (Vector2){10, 150 + 3 * 30}, 20, 1, MONOKAI_ORANGE);
-        DrawTextEx(monoFont, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){10, 150 + 4 * 30}, 20, 1, MONOKAI_ORANGE);
-        DrawTextEx(monoFont, TextFormat("    Post-opt cost, sol %9.6f", planner_outputs.out.solution.cost), (Vector2){10, 150 + 5 * 30}, 20, 1, WHITE);
-        DrawTextEx(monoFont, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){10, 150 + 6 * 30}, 20, 1, MONOKAI_RED);
-        DrawTextEx(monoFont, TextFormat("    Post-opt cost, aux %9.6f", planner_outputs.aux.solution.cost), (Vector2){10, 150 + 7 * 30}, 20, 1, MONOKAI_BLUE);
+        DrawTextEx(mono_font, TextFormat("Ratio rejected samples %5.0f%%", 100.0 * planner_outputs.out.tree.ratio_rejected_samples), (Vector2){10, 150 + 3 * 30}, 20, 1, MONOKAI_ORANGE);
+        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){10, 150 + 4 * 30}, 20, 1, MONOKAI_ORANGE);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, sol %9.6f", planner_outputs.out.solution.cost), (Vector2){10, 150 + 5 * 30}, 20, 1, WHITE);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){10, 150 + 6 * 30}, 20, 1, MONOKAI_RED);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, aux %9.6f", planner_outputs.aux.solution.cost), (Vector2){10, 150 + 7 * 30}, 20, 1, MONOKAI_BLUE);
 
         // Time plots.
         {
@@ -361,12 +361,10 @@ int main() {
             // Curvature data
             const TimePlotDataValues curvature_time_plot_data_vals = {extractCurvature(traj_post_opt), extractCurvature(traj_pre_opt)};
 
-            // TODO add plot title string as arg for drawTimePlot
-
-            drawTimePlot(speed_time_plot_data_vals, V_MAX, dt, total_time, viz_settings, 0, "Speed", monoFont);
-            drawTimePlot(lon_accel_time_plot_data_vals, ACCEL_LON_MAX, dt, total_time, viz_settings, 1, "Lon Accel", monoFont);
-            drawTimePlot(lat_accel_time_plot_data_vals, ACCEL_LAT_MAX, dt, total_time, viz_settings, 2, "Lat Accel", monoFont);
-            drawTimePlot(curvature_time_plot_data_vals, CURVATURE_MAX, dt, total_time, viz_settings, 3, "Curvature", monoFont);
+            drawTimePlot(speed_time_plot_data_vals, V_MAX, dt, total_time, viz_settings, 0, "Speed", mono_font);
+            drawTimePlot(lon_accel_time_plot_data_vals, ACCEL_LON_MAX, dt, total_time, viz_settings, 1, "Lon Accel", mono_font);
+            drawTimePlot(lat_accel_time_plot_data_vals, ACCEL_LAT_MAX, dt, total_time, viz_settings, 2, "Lat Accel", mono_font);
+            drawTimePlot(curvature_time_plot_data_vals, CURVATURE_MAX, dt, total_time, viz_settings, 3, "Curvature", mono_font);
         }
 
         const float draw_elm_clock_stop = GetTime();
@@ -375,7 +373,7 @@ int main() {
     }
 
     // Teardown
-    UnloadFont(monoFont);
+    UnloadFont(mono_font);
     CloseWindow();
     return 0;
 }
