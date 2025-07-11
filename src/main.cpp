@@ -27,61 +27,7 @@
 #include "planner/planner.h"
 #include "rrt/rrt.h"
 
-struct VisibilitySettings {
-    bool show_tree;
-    bool show_pre_opt_traj;
-    bool show_post_opt_traj;
-};
-
 static constexpr int GAME_FPS = 30;
-
-void drawSeries(std::vector<double> vals, const double val_max, const double dt, const double total_time, const int plotX, const int plotY, const int plotWidth, const int plotHeight, const float line_width, const Color color) {
-    for (int i = 0; (i + 1) < vals.size(); i++) {
-        const float t0 = i * dt;
-        const float t1 = (i + 1) * dt;
-        const float val0 = vals[i];
-        const float val1 = vals[i + 1];
-
-        const float x0 = plotX + plotWidth * (t0 / total_time);
-        const float x1 = plotX + plotWidth * (t1 / total_time);
-        const float y0 = plotY + plotHeight * (1.0f - (val0 / val_max));
-        const float y1 = plotY + plotHeight * (1.0f - (val1 / val_max));
-
-        DrawLineEx((Vector2){x0, y0}, (Vector2){x1, y1}, line_width, color);
-    }
-}
-
-struct TimePlotDataValues {
-    std::vector<double> post_opt_traj;
-    std::vector<double> pre_opt_traj;
-};
-
-void drawTimePlot(const TimePlotDataValues& vals, const double val_max, const double dt, const double total_time, const VisibilitySettings& viz_settings, const int ix_plot, const std::string& name, const Font font) {
-    static constexpr int plot_width = 300;
-    static constexpr int plot_height = 100;
-    const int plot_x = 10 + ix_plot * (plot_width + 10);
-    const int plot_y = SCREEN_HEIGHT - (2 * plot_height) - 50;
-
-    // Draw border
-    DrawRectangleLines(plot_x, plot_y, plot_width, plot_height, GRAY);
-    DrawRectangleLines(plot_x, plot_y + plot_height, plot_width, plot_height, GRAY);
-    const std::string title = name + " vs Time";
-    DrawTextEx(font, title.c_str(), (Vector2){(float)plot_x, (float)plot_y - 20}, 18, 1, WHITE);
-
-    // Post-opt traj
-    if (viz_settings.show_post_opt_traj) {
-        static constexpr float line_width = 2.0f;
-        static constexpr Color color = COLOR_TRAJ_POST_OPT;
-        drawSeries(vals.post_opt_traj, val_max, dt, total_time, plot_x, plot_y, plot_width, plot_height, line_width, color);
-    }
-
-    // Pre-opt traj
-    if (viz_settings.show_pre_opt_traj) {
-        static constexpr float line_width = 1.0f;
-        static constexpr Color color = COLOR_TRAJ_PRE_OPT;
-        drawSeries(vals.pre_opt_traj, val_max, dt, total_time, plot_x, plot_y, plot_width, plot_height, line_width, color);
-    }
-}
 
 template <int N>
 std::vector<double> extractSpeed(const Trajectory<N>& traj) {
