@@ -17,6 +17,11 @@
 // static constexpr double boundary_loss_weight = 10.0;
 static constexpr double obstacle_loss_weight = 10.0;
 
+// ---- SCENARIO: Slalom.
+std::vector<Obstacle> obstacles = {
+    {{15.0, 2.0}, 3.0},
+    {{35.0, -2.0}, 3.0}};
+
 // // ---- SCENARIO: Bubbles.
 // std::vector<Obstacle> obstacles = {
 //     {{14.0, 0.0}, 3.0},
@@ -24,22 +29,22 @@ static constexpr double obstacle_loss_weight = 10.0;
 //     {{28.0, 2.0}, 2.4},
 //     {{32.0, -2.0}, 2.4}};
 
-// ---- SCENARIO: Parking space.
-static constexpr double gap = 6.0;
-static constexpr double gap_half = 0.5 * gap;
-static constexpr double ob_r = 1.0;
-static constexpr double ob_spacing_factor = 1.3;
-std::vector<Obstacle> obstacles = {
-    {{20.0 - gap_half - ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
-    {{20.0 - gap_half - ob_r, 0 * ob_spacing_factor * ob_r}, ob_r},
-    {{20.0 - gap_half - ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
-    {{20.0 - gap_half - ob_r + ob_spacing_factor * ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
-    {{20.0 - gap_half - ob_r + ob_spacing_factor * ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
-    {{20.0 - gap_half - ob_r + 2 * ob_spacing_factor * ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
-    {{20.0 - gap_half - ob_r + 2 * ob_spacing_factor * ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
-    {{20.0 + gap_half + ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
-    {{20.0 + gap_half + ob_r, 0 * ob_spacing_factor * ob_r}, ob_r},
-    {{20.0 + gap_half + ob_r, -1 * ob_spacing_factor * ob_r}, ob_r}};
+// // ---- SCENARIO: Parking space.
+// static constexpr double gap = 6.0;
+// static constexpr double gap_half = 0.5 * gap;
+// static constexpr double ob_r = 1.0;
+// static constexpr double ob_spacing_factor = 1.3;
+// std::vector<Obstacle> obstacles = {
+//     {{20.0 - gap_half - ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{20.0 - gap_half - ob_r, 0 * ob_spacing_factor * ob_r}, ob_r},
+//     {{20.0 - gap_half - ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{20.0 - gap_half - ob_r + ob_spacing_factor * ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{20.0 - gap_half - ob_r + ob_spacing_factor * ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{20.0 - gap_half - ob_r + 2 * ob_spacing_factor * ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{20.0 - gap_half - ob_r + 2 * ob_spacing_factor * ob_r, -1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{20.0 + gap_half + ob_r, 1 * ob_spacing_factor * ob_r}, ob_r},
+//     {{20.0 + gap_half + ob_r, 0 * ob_spacing_factor * ob_r}, ob_r},
+//     {{20.0 + gap_half + ob_r, -1 * ob_spacing_factor * ob_r}, ob_r}};
 
 // Amount of clearance distance before loss starts kicking in.
 // clearance > clearance_free  ->      loss = 0
