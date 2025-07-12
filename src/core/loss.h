@@ -19,8 +19,8 @@ static constexpr double obstacle_loss_weight = 10.0;
 
 // ---- SCENARIO: Slalom.
 std::vector<Obstacle> obstacles = {
-    {{15.0, 2.0}, 3.0},
-    {{35.0, -2.0}, 3.0}};
+    {{15.0, 2.0}, 5.0},
+    {{35.0, -2.0}, 5.0}};
 
 // // ---- SCENARIO: Bubbles.
 // std::vector<Obstacle> obstacles = {

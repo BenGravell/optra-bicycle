@@ -123,8 +123,8 @@ int main() {
     bool show_post_opt_traj = true;
 
     // Define a fixed start point and an initial goal point in state space
-    const StateVector start{1.0, 0.0, 0.0, 0.0};
-    const StateVector goal{19.0, 0.0, 0.0, 0.0};
+    const StateVector start{1.0, 2.0, 0.0, 0.0};
+    const StateVector goal{49.0, -2.0, 0.0, 0.0};
 
     // Convert to screen space
     Vector2 start_point = state2screen(start);
