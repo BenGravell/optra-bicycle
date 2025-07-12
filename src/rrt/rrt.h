@@ -234,7 +234,11 @@ inline StateVector sample(const StateVector& goal, const std::optional<Solution<
     const double selector = urand();
     const bool sample_near_goal{selector < goal_sampling_proba};
     const double perturb_factor = 1.0;
-    return sample_near_goal ? sampleNear(goal, perturb_factor) : sample();
+    if (sample_near_goal) {
+        return sampleNear(goal, perturb_factor);
+    }
+
+    return sample();
 }
 
 inline bool outsideEnvironment(const StateVector& state) {
@@ -297,44 +301,44 @@ struct Tree {
         return nearest_node;
     }
 
-    // // NOTE: this is fast but destroys the rapid epxloration of RRT, tends to cluster around start!
-    // const std::shared_ptr<Node> getNearestLimited(const StateVector& target, const int target_time_ix, const int max_num_neighbors) const {
-    //     // Reservoir sampling.
-    //     std::vector<std::shared_ptr<Node>> reservoir;
-    //     reservoir.reserve(max_num_neighbors);
-    //     int n = 0;
-    //     for (const auto& node : nodes) {
-    //         // Skip if time index is not compatible.
-    //         if ((node->time_ix + 1) != target_time_ix) {
-    //             continue;
-    //         }
+    // NOTE: this is fast but destroys the rapid epxloration of RRT, tends to cluster around start!
+    const std::shared_ptr<Node> getNearestLimited(const StateVector& target, const int target_time_ix, const int max_num_neighbors) const {
+        // Reservoir sampling.
+        std::vector<std::shared_ptr<Node>> reservoir;
+        reservoir.reserve(max_num_neighbors);
+        int n = 0;
+        for (const auto& node : nodes) {
+            // Skip if time index is not compatible.
+            if ((node->time_ix + 1) != target_time_ix) {
+                continue;
+            }
 
-    //         // Update the reservoir.
-    //         ++n;
-    //         if (reservoir.size() < max_num_neighbors) {
-    //             reservoir.push_back(node);
-    //         } else {
-    //             std::uniform_int_distribution<int> dist(0, n - 1);
-    //             const int j = dist(gen);
-    //             if (j < max_num_neighbors) {
-    //                 reservoir[j] = node;
-    //             }
-    //         }
-    //     }
+            // Update the reservoir.
+            ++n;
+            if (reservoir.size() < max_num_neighbors) {
+                reservoir.push_back(node);
+            } else {
+                std::uniform_int_distribution<int> dist(0, n - 1);
+                const int j = dist(gen);
+                if (j < max_num_neighbors) {
+                    reservoir[j] = node;
+                }
+            }
+        }
 
-    //     // Nearest node in the reservoir.
-    //     double min_cost = std::numeric_limits<double>::max();
-    //     std::shared_ptr<Node> nearest_node = nullptr;
-    //     for (const auto& node : reservoir) {
-    //         const double cost = zapDistanceHeuristic(node->state, target);
-    //         if (cost < min_cost) {
-    //             min_cost = cost;
-    //             nearest_node = node;
-    //         }
-    //     }
+        // Nearest node in the reservoir.
+        double min_cost = std::numeric_limits<double>::max();
+        std::shared_ptr<Node> nearest_node = nullptr;
+        for (const auto& node : reservoir) {
+            const double cost = zapDistanceHeuristic(node->state, target);
+            if (cost < min_cost) {
+                min_cost = cost;
+                nearest_node = node;
+            }
+        }
 
-    //     return nearest_node;
-    // }
+        return nearest_node;
+    }
 
     // Get the node which is nearest to the target in terms of achieving the lowest cost to come to the target via the node.
     const std::shared_ptr<Node> getNearestCostToCome(const StateVector& target, const int target_time_ix) const {
