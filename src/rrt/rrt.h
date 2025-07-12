@@ -33,10 +33,6 @@ static constexpr double DT = 0.1;
 // Time of a steering function trajectory, seconds
 static constexpr double STEER_TIME = DT * TRAJ_LENGTH_STEER;
 
-// Factor used to iteratively pull samples closer to nearest parent.
-// Should be in (0, 1), closer to 1 means less aggressive moves (precise search, more iterations)
-static constexpr double ATTRACT_FACTOR = 0.6;
-
 // Depth of the tree.
 // Integer division is OK because TRAJ_LENGTH_OPT is an integer multiple of TRAJ_LENGTH_STEER.
 static constexpr int TREE_DEPTH = TRAJ_LENGTH_OPT / TRAJ_LENGTH_STEER;
@@ -499,16 +495,6 @@ struct Tree {
                 // Could not find a parent.
                 if (parent == nullptr) {
                     continue;
-                }
-
-                // Move sample close enough to the zero-action point.
-                static constexpr double d_max_deviation_factor = 20.0;
-                static constexpr double a_max = std::max(ACCEL_LON_MAX, ACCEL_LAT_MAX);
-                static constexpr double d_max_deviation_nominal = 0.5 * DT * DT * a_max;
-                static constexpr double d_max_deviation = d_max_deviation_factor * d_max_deviation_nominal;
-                StateVector zero_action_point = rolloutZeroAction(parent->state, STEER_TIME);
-                while (distanceHeuristic(state, zero_action_point) > d_max_deviation) {
-                    state = zero_action_point + ATTRACT_FACTOR * (state - zero_action_point);
                 }
 
                 // Sampled state is in collision.
