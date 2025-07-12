@@ -346,7 +346,7 @@ int main() {
         // Column 2
         DrawTextEx(mono_font, TextFormat("       Traj total time %5.3f s", planner_outputs.out.solution.total_time), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 0 * 30}, STATS_FONT_SIZE, 1, MONOKAI_YELLOW);
         DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_YELLOW);
-        DrawTextEx(mono_font, TextFormat("Ratio rejected samples %5.0f%%", 100.0 * planner_outputs.out.tree.ratio_rejected_samples), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_ORANGE);
+        DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", planner_outputs.out.tree.nodes.size()), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_ORANGE);
         DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, 20, 1, MONOKAI_ORANGE);
         DrawTextEx(mono_font, TextFormat("    Post-opt cost, sol %9.6f", planner_outputs.out.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 4 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WHITE);
         DrawTextEx(mono_font, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 5 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_RED);
