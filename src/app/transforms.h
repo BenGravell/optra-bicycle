@@ -8,7 +8,7 @@
 
 // Gutter sizes, px.
 static constexpr int GUTTER_SS_X = 100;
-static constexpr int GUTTER_SS_Y = 400;
+static constexpr int GUTTER_SS_Y = 300;
 
 // Scale factor from state space to screen space.
 // 1 meter in state space = SCALE_SS px in screen space.

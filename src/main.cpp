@@ -313,7 +313,8 @@ int main() {
         static constexpr int STATS_MARGIN = 10;
         static constexpr int STATS_FONT_SIZE = 20;
         static constexpr int STATS_ROW_HEIGHT = STATS_FONT_SIZE + STATS_MARGIN;
-        static constexpr int STATS_WIDTH = 300;
+        static constexpr int STATS_WIDTH_1 = 200;
+        static constexpr int STATS_WIDTH_2 = 350;
 
 
         // Draw the timer info
@@ -344,13 +345,15 @@ int main() {
         const double v_avg = planner_outputs.out.solution.traj.state_sequence.row(3).cwiseAbs().mean();
 
         // Column 2
-        DrawTextEx(mono_font, TextFormat("       Traj total time %5.3f s", planner_outputs.out.solution.total_time), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 0 * 30}, STATS_FONT_SIZE, 1, MONOKAI_YELLOW);
-        DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_YELLOW);
-        DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", planner_outputs.out.tree.nodes.size()), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_ORANGE);
-        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, 20, 1, MONOKAI_ORANGE);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, sol %9.6f", planner_outputs.out.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 4 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WHITE);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 5 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_RED);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, aux %9.6f", planner_outputs.aux.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH, STATS_MARGIN + 6 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_BLUE);
+        DrawTextEx(mono_font, TextFormat("       Traj total time %5.3f s", planner_outputs.out.solution.total_time), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 0 * 30}, STATS_FONT_SIZE, 1, MONOKAI_YELLOW);
+        DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_YELLOW);
+        DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", planner_outputs.out.tree.nodes.size()), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_ORANGE);
+        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, 20, 1, MONOKAI_ORANGE);
+        
+        // Column 3
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, sol %9.6f", planner_outputs.out.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WHITE);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_RED);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, aux %9.6f", planner_outputs.aux.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_BLUE);
 
         // Time plots.
         {
