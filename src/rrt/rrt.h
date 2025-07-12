@@ -403,7 +403,7 @@ struct Tree {
         nodes.push_back(node);
     }
 
-    void grow(const StateVector& start, const StateVector& goal, const int num_nodes, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm = std::nullopt) {
+    void grow(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm = std::nullopt) {
         int next_node_ix = 0;
 
         // Create root node and add to the tree.
@@ -465,7 +465,7 @@ struct Tree {
         // Grow the tree by adding samples.
         // TODO make this a method
         int time_ix = -1;
-        for (int node_count = 1; node_count <= num_nodes; ++node_count) {
+        for (int node_attempt_ix = 1; node_attempt_ix <= num_node_attempts; ++node_attempt_ix) {
             // Attempt to add a single node.
 
             // Time index of sample.

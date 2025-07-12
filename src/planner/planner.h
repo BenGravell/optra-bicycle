@@ -31,7 +31,7 @@ struct Planner {
         const float clock_start = GetTime();
 
         Tree tree;
-        tree.grow(start, goal, NUM_NODES, warm);
+        tree.grow(start, goal, NUM_NODE_ATTEMPTS, warm);
 
         const float clock_stop = GetTime();
         const int clock_time = static_cast<int>(std::ceil(1e6 * (clock_stop - clock_start)));
