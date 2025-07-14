@@ -134,7 +134,7 @@ struct TimePlotDataValues {
 static constexpr int PLOT_WIDTH = 300;
 static constexpr int PLOT_HALF_HEIGHT = 50;
 static constexpr int TIME_PLOT_MARGIN_X = 10;
-static constexpr int TIME_PLOT_MARGIN_Y = 50;
+static constexpr int TIME_PLOT_MARGIN_Y = 10;
 static constexpr int TIME_PLOT_TITLE_FONT_SIZE = 20;
 static constexpr int TIME_PLOT_TITLE_MARGIN_Y = TIME_PLOT_TITLE_FONT_SIZE + 10;
 
