@@ -3,12 +3,13 @@
 #include <vector>
 
 template <typename T>
-double lerp(const T a, const T b, const double t) {
+T lerp(const T a, const T b, const double t) {
     return (1.0 - t) * a + t * b;
 }
 
 // 1D Linear interpolation: given sorted xs, fs, and a new point x, return interpolated f.
-inline double interp(const std::vector<double>& xs, const std::vector<double>& fs, const double x) {
+template <typename T>
+inline T interp(const std::vector<double>& xs, const std::vector<T>& fs, const double x) {
     // Clamp to boundary.
     if (x <= xs.front()) {
         return fs.front();
@@ -25,8 +26,8 @@ inline double interp(const std::vector<double>& xs, const std::vector<double>& f
     // Linear interpolation in [idx-1, idx].
     const double x1 = xs[i1];
     const double x2 = xs[i2];
-    const double f1 = fs[i1];
-    const double f2 = fs[i2];
+    const T f1 = fs[i1];
+    const T f2 = fs[i2];
     const double t = (x - x1) / (x2 - x1);
     return lerp(f1, f2, t);
 }
