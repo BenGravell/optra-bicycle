@@ -79,10 +79,10 @@ int main() {
     int traj_opt_clock_time = -1;
     int draw_elm_clock_time = -1;
     int game_upd_clock_time = -1;
-    const double tree_exp_clock_momentum = 0.95;
-    const double traj_opt_clock_momentum = 0.95;
-    const double draw_elm_clock_momentum = 0.95;
-    const double game_upd_clock_momentum = 0.95;
+    const double tree_exp_clock_momentum = 0.90;
+    const double traj_opt_clock_momentum = 0.90;
+    const double draw_elm_clock_momentum = 0.90;
+    const double game_upd_clock_momentum = 0.90;
 
     int draw_elm_clock_time_next = 0;
 
