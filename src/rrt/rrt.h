@@ -335,6 +335,30 @@ struct Tree {
         return nearest_node;
     }
 
+    // Alternative to getNearestLimited that is more naive,
+    // just checks max_num_neighbors candidates and uses rejection of incompatible time_ix
+    const std::shared_ptr<Node> getNearestLimitedV2(const StateVector& target, const int target_time_ix, const int max_num_neighbors) const {
+        double min_cost = std::numeric_limits<double>::max();
+        std::shared_ptr<Node> nearest_node = nullptr;
+        for (int i = 0; i < max_num_neighbors; ++i) {
+            const int index = std::rand() % nodes.size();
+            const std::shared_ptr<Node> node = nodes[index];
+
+            // Skip if time index is not compatible.
+            if ((node->time_ix + 1) != target_time_ix) {
+                continue;
+            }
+
+            const double cost = zapDistanceHeuristic(node->state, target);
+            if (cost < min_cost) {
+                min_cost = cost;
+                nearest_node = node;
+            }
+        }
+
+        return nearest_node;
+    }
+
     // Get the node which is nearest to the target in terms of achieving the lowest cost to come to the target via the node.
     const std::shared_ptr<Node> getNearestCostToCome(const StateVector& target, const int target_time_ix) const {
         double min_cost_to_come = std::numeric_limits<double>::max();
@@ -481,6 +505,11 @@ struct Tree {
             // // Use getNearestLimited to keep the search for a parent quick, even for large trees.
             // static constexpr int max_num_neighbors = 64;
             // std::shared_ptr<Node> parent = getNearestLimited(state, time_ix, max_num_neighbors);
+
+            // // Use getNearestLimitedV2 to keep the search for a parent quick, even for large trees.
+            // // Can be even faster than getNearestLimited
+            // static constexpr int max_num_neighbors = 64;
+            // std::shared_ptr<Node> parent = getNearestLimitedV2(state, time_ix, max_num_neighbors);
 
             // Could not find a parent.
             if (parent == nullptr) {
