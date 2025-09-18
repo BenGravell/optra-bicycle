@@ -38,23 +38,16 @@ void drawTree(const Tree& tree, const bool warm) {
     for (const auto& node : tree.nodes) {
         // TODO add UI button for coloring white or by time index.
 
-        // // Widen & special color for warm start node.
-        // const float line_width = (node->is_warm) ? 2 : 1;
-        // const auto color = (node->is_warm) ? COLOR_WARM_START : COLOR_TREE;
-
         // Color by time index.
         const float line_width = 1.0;
         const float c = static_cast<float>(node->time_ix) / static_cast<float>(TIME_IX_MAX);
-        const Color color = Fade(warm ? warmColormap(c) : coolColormap(c), 0.2f);
+        const Color color = Fade(warm ? warmColormap(c) : coolColormap(c), 0.6f);
 
         // Skip drawing traj for nodes with null parent (e.g. root node),
         // which have garbage node->traj.
         if (node->parent != nullptr) {
             drawTrajectory(node->traj, line_width, color);
         }
-
-        // This incurs a huge drawing performance hit
-        // DrawCircleV(state2screen(node->state), 2 * line_width, color);
     }
 }
 
