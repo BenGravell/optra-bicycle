@@ -2,10 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from cmap import Colormap
+import colorspacious as cs
 
 
 def generate_colormap_lut_cpp(
-    cmap_name: str, num_colors: int = 256, cmap_name_override: str | None = None
+    cmap_name: str, num_colors: int = 1024, cmap_name_override: str | None = None
 ):
     cmap_name_out = cmap_name if cmap_name_override is None else cmap_name_override
     filename = f"src/cmaps/{cmap_name_out}.h"
@@ -16,6 +17,7 @@ def generate_colormap_lut_cpp(
 
     ts = np.linspace(0, 1, num_colors)
     lut = cmap(ts)[:, :3]  # Omit alpha channel
+
     lut_255 = (lut * 255).astype(int)
 
     with open(filename, "w") as f:
@@ -41,32 +43,8 @@ def generate_colormap_lut_cpp(
 
 
 if __name__ == "__main__":
-    generate_colormap_lut_cpp("turbo")
-    generate_colormap_lut_cpp("magma")
-    generate_colormap_lut_cpp("inferno")
-    generate_colormap_lut_cpp("viridis")
-
-    generate_colormap_lut_cpp("mako")
-    generate_colormap_lut_cpp("rocket")
-    generate_colormap_lut_cpp("flare_r")
-    generate_colormap_lut_cpp("crest_r")
-
-    generate_colormap_lut_cpp("roma_r")
-    generate_colormap_lut_cpp("managua_r")
-    generate_colormap_lut_cpp("sunset")
-    generate_colormap_lut_cpp("turbid")
-    generate_colormap_lut_cpp("jungle")
-    generate_colormap_lut_cpp("brbg")
-    generate_colormap_lut_cpp("pride")
-    generate_colormap_lut_cpp("prinsenvlag")
-    generate_colormap_lut_cpp("fusion")
-    generate_colormap_lut_cpp("guppy")
-    generate_colormap_lut_cpp("guppy_r")
-
-    generate_colormap_lut_cpp("spectral")
-    generate_colormap_lut_cpp("curl")
-    generate_colormap_lut_cpp("delta")
-    generate_colormap_lut_cpp("haline")
-    generate_colormap_lut_cpp("cmasher:ocean", cmap_name_override="ocean")
-
-    generate_colormap_lut_cpp("opf_fresh")
+    # generate_colormap_lut_cpp("guppy_r", cmap_name_override="guppy_r_hq")
+    # generate_colormap_lut_cpp("cosmic", cmap_name_override="cosmic_hq")
+    # generate_colormap_lut_cpp("pride", cmap_name_override="pride_hq")
+    # generate_colormap_lut_cpp("sunset", cmap_name_override="sunset_hq")
+    generate_colormap_lut_cpp("gem_r", cmap_name_override="gem_r_hq")
