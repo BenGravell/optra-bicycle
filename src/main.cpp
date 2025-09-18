@@ -27,7 +27,7 @@
 #include "planner/planner.h"
 #include "rrt/rrt.h"
 
-static constexpr int GAME_FPS = 30;
+static constexpr int GAME_FPS = 60;
 
 template <int N>
 std::vector<double> extractSpeed(const Trajectory<N>& traj) {

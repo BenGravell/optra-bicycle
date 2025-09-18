@@ -11,7 +11,7 @@
 #include "rrt/rrt.h"
 
 // RRT settings
-static constexpr int NUM_NODE_ATTEMPTS = 800;
+static constexpr int NUM_NODE_ATTEMPTS = 2000;
 
 struct TimingInfo {
     int tree_exp;  // ms
