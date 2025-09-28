@@ -73,7 +73,8 @@ inline double distanceHeuristic(const StateVector& start, const StateVector& goa
     // Compute the raw normalized yaw difference in [0, 1].
     const double yaw_diff = std::abs(angularDifference(yaw1, yaw2)) / PI;
 
-    // Compute a factor based on the yaw diff. Apply square() to max small yaw differences << 1 have less impact.
+    // Compute a factor based on the yaw diff.
+    // Apply square() so that small yaw differences << 1 have less impact.
     const double yaw_diff_factor = square(yaw_diff);
 
     // Compute scaled distance.
@@ -82,7 +83,7 @@ inline double distanceHeuristic(const StateVector& start, const StateVector& goa
 
 // Distance from [zero-action-point of start] to [goal]
 // This is a good proxy for softLoss since acceleration is proportional to
-// distance-from-zap(start)-to-goal under simplifying kinematic assumptions e.g. @ high speed.
+// distance(zap(start), goal) under simplifying kinematic assumptions e.g. @ high speed.
 inline double zapDistanceHeuristic(const StateVector& start, const StateVector& goal) {
     return distanceHeuristic(rolloutZeroAction(start, STEER_TIME), goal);
 }
@@ -191,31 +192,14 @@ inline StateVector sampleNear(const StateVector& state, const double perturb_fac
 }
 
 inline StateVector sampleNearWarm(const Solution<TRAJ_LENGTH_OPT>& warm, const int time_ix) {
-    // Choose a random state from the warm-start solution.
-
-    // Selector for pure or sub-trajectory random index.
-    const double selector = urand();
-    static constexpr double sub_traj_proba = 0.2;
-    const bool use_sub_traj{selector < sub_traj_proba};
-
-    int ix_lwr;
-    int ix_upr;
-    double perturb_factor;
-    if (use_sub_traj) {
-        // Within sub-trajectory corresponding to given time_ix
-        ix_lwr = time_ix * TRAJ_LENGTH_STEER;
-        ix_upr = ix_lwr + TRAJ_LENGTH_STEER;
-        perturb_factor = 0.4;
-    } else {
-        // Pure random
-        ix_lwr = 0;
-        ix_upr = TRAJ_LENGTH_OPT;
-        perturb_factor = 1.0;
-    }
-
-    const int stage_ix = std::lround(urand(ix_lwr, ix_upr));
-
+    // Choose a random state from the warm-start solution
+    // within sub-trajectory corresponding to given time_ix
+    const int ix_lwr = time_ix * TRAJ_LENGTH_STEER;
+    const int ix_upr = ix_lwr + TRAJ_LENGTH_STEER;
+    std::uniform_int_distribution<int> dist(ix_lwr, ix_upr);
+    const int stage_ix = dist(gen);
     const StateVector& state = warm.traj.stateAt(stage_ix);
+    static constexpr double perturb_factor = 2.0;
     return sampleNear(state, perturb_factor);
 }
 
@@ -226,7 +210,7 @@ inline StateVector sample(const StateVector& goal, const std::optional<Solution<
     }
 
     // Sample near the goal sometimes.
-    static constexpr double goal_sampling_proba = 0.05;
+    static constexpr double goal_sampling_proba = 0.02;
     const double selector = urand();
     const bool sample_near_goal{selector < goal_sampling_proba};
     const double perturb_factor = 1.0;
@@ -286,7 +270,6 @@ struct Tree {
             }
 
             const double cost = zapDistanceHeuristic(node->state, target);
-
             if (cost < min_cost) {
                 min_cost = cost;
                 nearest_node = node;
@@ -443,7 +426,7 @@ struct Tree {
             std::shared_ptr<Node> parent = root_node_ptr;
             for (int time_ix = 0; time_ix < TIME_IX_MAX; ++time_ix) {
                 const bool constrain = true;
-                const auto steer_outputs = steer(parent->state, start, constrain);
+                const auto steer_outputs = steer(parent->state, rolloutZeroAction(parent->state, STEER_TIME), constrain);
                 const auto& traj = steer_outputs.traj;
                 const double cost = steer_outputs.cost;
 
@@ -488,7 +471,7 @@ struct Tree {
 
         // Grow the tree by adding samples.
         // TODO make this a method
-        for (int time_ix = 1; time_ix <= TIME_IX_MAX_FOR_SAMPLING; ++time_ix) {
+        for (int time_ix = 0; time_ix <= TIME_IX_MAX_FOR_SAMPLING; ++time_ix) {
             // Add nodes in this stage.
             int num_node_attempts_per_stage = num_node_attempts / TIME_IX_MAX_FOR_SAMPLING;
             for (int node_attempt_ix = 0; node_attempt_ix < num_node_attempts_per_stage; ++node_attempt_ix) {
@@ -560,22 +543,65 @@ struct Tree {
         // ---- Add node to steer to goal.
         // TODO make this a method
         {
-            const std::shared_ptr<Node> node_nearest_goal = getNearestCostToCome(goal, TIME_IX_MAX);
-            if (node_nearest_goal != nullptr) {
-                // Steer from parent to goal.
-                const bool constrain = true;
-                const auto steer_outputs = steer(node_nearest_goal->state, goal, constrain);
-                const auto& traj = steer_outputs.traj;
-                const double cost = steer_outputs.cost;
-                const StateVector& state = traj.stateTerminal();
+            // ---- Find parent
+            double min_cost_to_come = std::numeric_limits<double>::max();
+            std::shared_ptr<Node> node_nearest_goal = nullptr;
+            for (std::shared_ptr<Node> node : nodes) {
+                // Skip if time index is not compatible.
+                if ((node->time_ix + 1) != TIME_IX_MAX) {
+                    continue;
+                }
 
-                // Add node regardless of whether trajectory satisfies any constraints.
-                // This ensures the tree has at least one node with time_ix = TIME_IX_MAX.
-                const Node node{state, node_nearest_goal, traj, cost, cost + node_nearest_goal->cost_to_come, STEER_TIME, TIME_IX_MAX, next_node_ix};
-                const std::shared_ptr<Node> node_ptr = std::make_shared<Node>(node);
-                addNode(node_ptr);
-                next_node_ix++;
+                // Steer from node to target.
+                const bool constrain = true;
+                const auto steer_outputs = steer(node->state, goal, constrain);
+
+                // Check if collision-free
+                bool in_collision = false;
+                for (const auto& obstacle : obstacles) {
+                    in_collision = in_collision || obstacle.collidesWith(steer_outputs.traj);
+                }
+                if (in_collision) {
+                    continue;
+                }
+                if (outsideEnvironment(steer_outputs.traj)) {
+                    continue;
+                }
+
+                // Check if goal hit
+                static constexpr double tol_factor = 1.0;
+                const bool target_hit = checkTargetHit(node->state, goal, tol_factor);
+                if (!target_hit) {
+                    continue;
+                }
+
+                // Check if cost-to-come is improved relative to current best.
+                const double cost_to_come = node->cost_to_come + steer_outputs.cost;
+                const bool cost_improved = cost_to_come < min_cost_to_come;
+
+                if (cost_improved) {
+                    min_cost_to_come = cost_to_come;
+                    node_nearest_goal = node;
+                }
             }
+            // Fallback in case collision and goal-hit checks discarded everything
+            if (node_nearest_goal == nullptr) {
+                node_nearest_goal = getNearestCostToCome(goal, TIME_IX_MAX);
+            }
+
+            // Steer from parent to goal.
+            const bool constrain = true;
+            const auto steer_outputs = steer(node_nearest_goal->state, goal, constrain);
+            const auto& traj = steer_outputs.traj;
+            const double cost = steer_outputs.cost;
+            const StateVector& state = traj.stateTerminal();
+
+            // Add node.
+            // This ensures the tree always has one node with time_ix = TIME_IX_MAX.
+            const Node node{state, node_nearest_goal, traj, cost, cost + node_nearest_goal->cost_to_come, STEER_TIME, TIME_IX_MAX, next_node_ix};
+            const std::shared_ptr<Node> node_ptr = std::make_shared<Node>(node);
+            addNode(node_ptr);
+            next_node_ix++;
         }
     }
 
