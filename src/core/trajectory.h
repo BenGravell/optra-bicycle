@@ -7,7 +7,7 @@
 #include "core/space.h"
 
 // Length of trajectory for steering function, i.e. for one node.
-static constexpr uint64_t TRAJ_LENGTH_STEER = 10;
+static constexpr uint64_t TRAJ_LENGTH_STEER = 20;
 
 // Length of trajectory for trajectory optimization, i.e. the entire trajectory.
 static constexpr uint64_t TRAJ_LENGTH_OPT = 100;
