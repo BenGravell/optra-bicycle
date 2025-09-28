@@ -488,74 +488,73 @@ struct Tree {
 
         // Grow the tree by adding samples.
         // TODO make this a method
-        int time_ix = -1;
-        for (int node_attempt_ix = 1; node_attempt_ix <= num_node_attempts; ++node_attempt_ix) {
-            // Attempt to add a single node.
+        for (int time_ix = 1; time_ix <= TIME_IX_MAX_FOR_SAMPLING; ++time_ix) {
+            // Add nodes in this stage.
+            int num_node_attempts_per_stage = num_node_attempts / TIME_IX_MAX_FOR_SAMPLING;
+            for (int node_attempt_ix = 0; node_attempt_ix < num_node_attempts_per_stage; ++node_attempt_ix) {
+                // Attempt to add a single node.
 
-            // Time index of sample.
-            // Round-robin.
-            time_ix = (time_ix + 1) % (TIME_IX_MAX_FOR_SAMPLING + 1);
+                // Sample a new state.
+                StateVector state = sample(goal, warm, time_ix);
 
-            // Sample a new state.
-            StateVector state = sample(goal, warm, time_ix);
+                // Set the parent.
+                std::shared_ptr<Node> parent = getNearest(state, time_ix);
 
-            // Set the parent.
-            std::shared_ptr<Node> parent = getNearest(state, time_ix);
+                // // Use getNearestLimited to keep the search for a parent quick, even for large trees.
+                // static constexpr int max_num_neighbors = 64;
+                // std::shared_ptr<Node> parent = getNearestLimited(state, time_ix, max_num_neighbors);
 
-            // // Use getNearestLimited to keep the search for a parent quick, even for large trees.
-            // static constexpr int max_num_neighbors = 64;
-            // std::shared_ptr<Node> parent = getNearestLimited(state, time_ix, max_num_neighbors);
+                // // Use getNearestLimitedV2 to keep the search for a parent quick, even for large trees.
+                // // Can be even faster than getNearestLimited
+                // static constexpr int max_num_neighbors = 64;
+                // std::shared_ptr<Node> parent = getNearestLimitedV2(state, time_ix, max_num_neighbors);
 
-            // // Use getNearestLimitedV2 to keep the search for a parent quick, even for large trees.
-            // // Can be even faster than getNearestLimited
-            // static constexpr int max_num_neighbors = 64;
-            // std::shared_ptr<Node> parent = getNearestLimitedV2(state, time_ix, max_num_neighbors);
+                // Could not find a parent.
+                if (parent == nullptr) {
+                    continue;
+                }
 
-            // Could not find a parent.
-            if (parent == nullptr) {
-                continue;
+                // Sampled state is in collision.
+                bool in_collision = false;
+                for (const auto& obstacle : obstacles) {
+                    in_collision = in_collision || obstacle.collidesWith(state);
+                }
+                if (in_collision) {
+                    continue;
+                }
+
+                // Steer from parent to child.
+                // NOTE: Using projection onto the action constraints is critical to sampling efficiency.
+                // Using rejection sampling to honor action constraints leads to very few feasible samples and long runtimes.
+                // NOTE: Using projection tends to produce bang-bang trajectories.
+                // This might not be good on its own, but using traj opt post-processing mitigates any ill-effects.
+                const bool constrain = true;
+                const auto steer_outputs = steer(parent->state, state, constrain);
+                const auto& traj = steer_outputs.traj;
+                const double cost = steer_outputs.cost;
+
+                // Reset state sample as the terminal state in the trajectory.
+                state = traj.stateTerminal();
+
+                // Trajectory is in collision.
+                for (const auto& obstacle : obstacles) {
+                    in_collision = in_collision || obstacle.collidesWith(traj);
+                }
+                if (in_collision) {
+                    continue;
+                }
+
+                // Something, e.g. action constraint projection, caused a trajectory state to go outside the environment.
+                if (outsideEnvironment(traj)) {
+                    continue;
+                }
+
+                // Create node from sampled state and add to the tree.
+                const Node node{state, parent, traj, cost, cost + parent->cost_to_come, STEER_TIME, time_ix, next_node_ix};
+                const std::shared_ptr<Node> node_ptr = std::make_shared<Node>(node);
+                addNode(node_ptr);
+                next_node_ix++;
             }
-
-            // Sampled state is in collision.
-            bool in_collision = false;
-            for (const auto& obstacle : obstacles) {
-                in_collision = in_collision || obstacle.collidesWith(state);
-            }
-            if (in_collision) {
-                continue;
-            }
-
-            // Steer from parent to child.
-            // NOTE: Using projection onto the action constraints is critical to sampling efficiency.
-            // Using rejection sampling to honor action constraints leads to very few feasible samples and long runtimes.
-            // NOTE: Using projection tends to produce bang-bang trajectories.
-            // This might not be good on its own, but using traj opt post-processing mitigates any ill-effects.
-            const bool constrain = true;
-            const auto steer_outputs = steer(parent->state, state, constrain);
-            const auto& traj = steer_outputs.traj;
-            const double cost = steer_outputs.cost;
-
-            // Reset state sample as the terminal state in the trajectory.
-            state = traj.stateTerminal();
-
-            // Trajectory is in collision.
-            for (const auto& obstacle : obstacles) {
-                in_collision = in_collision || obstacle.collidesWith(traj);
-            }
-            if (in_collision) {
-                continue;
-            }
-
-            // Something, e.g. action constraint projection, caused a trajectory state to go outside the environment.
-            if (outsideEnvironment(traj)) {
-                continue;
-            }
-
-            // Create node from sampled state and add to the tree.
-            const Node node{state, parent, traj, cost, cost + parent->cost_to_come, STEER_TIME, time_ix, next_node_ix};
-            const std::shared_ptr<Node> node_ptr = std::make_shared<Node>(node);
-            addNode(node_ptr);
-            next_node_ix++;
         }
 
         // ---- Add node to steer to goal.
