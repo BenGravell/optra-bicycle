@@ -3,7 +3,7 @@
 #include "core/constants.h"
 #include "core/space.h"
 
-static constexpr double X_MAX = 50.0;
+static constexpr double X_MAX = 40.0;
 static constexpr double X_MIN = 0.0;
 static constexpr double X_SIZE = X_MAX - X_MIN;
 

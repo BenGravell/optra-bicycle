@@ -12,7 +12,7 @@ static constexpr int GUTTER_SS_Y = 300;
 
 // Scale factor from state space to screen space.
 // 1 meter in state space = SCALE_SS px in screen space.
-static constexpr int SCALE_SS = 40;
+static constexpr int SCALE_SS = 50;
 
 // Origin in screen space.
 static constexpr int ORIGIN_SS_X = GUTTER_SS_X - X_MIN * SCALE_SS;
