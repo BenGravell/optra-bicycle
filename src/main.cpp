@@ -25,7 +25,7 @@
 #include "ilqr/solver.h"
 #include "ilqr/solver_settings.h"
 #include "planner/planner.h"
-#include "rrt/rrt.h"
+#include "tree/tree.h"
 
 static constexpr int GAME_FPS = 60;
 
@@ -249,19 +249,21 @@ int main() {
             }
         }
 
-        // Draw pre-opt trajectory (RRT solution).
+        // Draw pre-opt trajectory (tree solution).
         if (viz_settings.show_pre_opt_traj) {
             static constexpr float line_width = 8;
             static constexpr float node_width = 16;
-            static constexpr Color color = COLOR_TRAJ_PRE_OPT;
-            drawPath(planner_outputs.out.path, line_width, node_width, color);
+            // Draw trajectory so that even if drawPath draws nothing we still see the pre-opt traj.
+            // That happens when all trees are disabled and we do trajOptOnly.
+            drawTrajectory(planner_outputs.out.traj_pre_opt, line_width, COLOR_TRAJ_PRE_OPT);
+            // Draw path so we see the nodes in the pre-opt traj path, if available.
+            drawPath(planner_outputs.out.path, line_width, node_width);
         }
 
         // Draw post-opt trajectory (iLQR solution).
         if (viz_settings.show_post_opt_traj) {
             static constexpr float line_width = 4;
-            static constexpr Color color = COLOR_TRAJ_POST_OPT;
-            drawTrajectory(planner_outputs.out.solution.traj, line_width, color);
+            drawTrajectory(planner_outputs.out.solution.traj, line_width, COLOR_TRAJ_POST_OPT);
         }
 
         // Draw start point and the goal point
@@ -308,14 +310,12 @@ int main() {
         DrawRectangleRec(show_post_opt_traj_button, GRAY);
         DrawText(show_post_opt_traj ? "Hide post-opt traj" : "Show post-opt traj", show_post_opt_traj_button.x + 10, show_post_opt_traj_button.y + 15, 20, RAYWHITE);
 
-
         // ---- Text stats
         static constexpr int STATS_MARGIN = 10;
         static constexpr int STATS_FONT_SIZE = 20;
         static constexpr int STATS_ROW_HEIGHT = STATS_FONT_SIZE + STATS_MARGIN;
         static constexpr int STATS_WIDTH_1 = 200;
         static constexpr int STATS_WIDTH_2 = 350;
-
 
         // Draw the timer info
         if (tree_exp_clock_time < 0) {
@@ -345,11 +345,14 @@ int main() {
         const double v_avg = planner_outputs.out.solution.traj.state_sequence.row(3).cwiseAbs().mean();
 
         // Column 2
-        DrawTextEx(mono_font, TextFormat("       Traj total time %5.3f s", planner_outputs.out.solution.total_time), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 0 * 30}, STATS_FONT_SIZE, 1, MONOKAI_YELLOW);
         DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_YELLOW);
-        DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", planner_outputs.out.tree.nodes.size()), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_ORANGE);
+        int num_nodes = 0;
+        for (const auto nodes : planner_outputs.out.tree.layers) {
+            num_nodes += nodes.size();
+        }
+        DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", num_nodes), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_ORANGE);
         DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, 20, 1, MONOKAI_ORANGE);
-        
+
         // Column 3
         DrawTextEx(mono_font, TextFormat("    Post-opt cost, sol %9.6f", planner_outputs.out.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WHITE);
         DrawTextEx(mono_font, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_RED);
@@ -360,8 +363,6 @@ int main() {
             // Common data.
             const Trajectory<TRAJ_LENGTH_OPT>& traj_pre_opt = planner_outputs.out.traj_pre_opt;
             const Trajectory<TRAJ_LENGTH_OPT>& traj_post_opt = planner_outputs.out.solution.traj;
-            const double total_time = planner_outputs.out.solution.total_time;
-            const double dt = total_time / traj_post_opt.length;
 
             // Speed data
             const TimePlotDataValues speed_time_plot_data_vals = {extractSpeed(traj_post_opt), extractSpeed(traj_pre_opt)};
@@ -375,10 +376,11 @@ int main() {
             // Curvature data
             const TimePlotDataValues curvature_time_plot_data_vals = {extractCurvature(traj_post_opt), extractCurvature(traj_pre_opt)};
 
-            drawTimePlot(speed_time_plot_data_vals, V_MAX, dt, total_time, viz_settings, 0, "Speed", mono_font);
-            drawTimePlot(lon_accel_time_plot_data_vals, ACCEL_LON_MAX, dt, total_time, viz_settings, 1, "Lon Accel", mono_font);
-            drawTimePlot(lat_accel_time_plot_data_vals, ACCEL_LAT_MAX, dt, total_time, viz_settings, 2, "Lat Accel", mono_font);
-            drawTimePlot(curvature_time_plot_data_vals, CURVATURE_MAX, dt, total_time, viz_settings, 3, "Curvature", mono_font);
+            const double total_time = TRAJ_DURATION_OPT;
+            drawTimePlot(speed_time_plot_data_vals, V_MAX, DT, total_time, viz_settings, 0, "Speed", mono_font);
+            drawTimePlot(lon_accel_time_plot_data_vals, ACCEL_LON_MAX, DT, total_time, viz_settings, 1, "Lon Accel", mono_font);
+            drawTimePlot(lat_accel_time_plot_data_vals, ACCEL_LAT_MAX, DT, total_time, viz_settings, 2, "Lat Accel", mono_font);
+            drawTimePlot(curvature_time_plot_data_vals, CURVATURE_MAX, DT, total_time, viz_settings, 3, "Curvature", mono_font);
         }
 
         const float draw_elm_clock_stop = GetTime();

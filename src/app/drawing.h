@@ -11,7 +11,7 @@
 #include "core/search_space.h"
 #include "core/space.h"
 #include "core/trajectory.h"
-#include "rrt/rrt.h"
+#include "tree/tree.h"
 
 template <int N>
 void drawTrajectory(const Trajectory<N>& traj, const float line_width, const Color color) {
@@ -27,26 +27,44 @@ void drawTrajectory(const Trajectory<N>& traj, const float line_width, const Col
     }
 }
 
-void drawPath(const Path& path, const float line_width, const float node_width, const Color color) {
+void drawPath(const Path& path, const float line_width, const float node_width) {
     for (const auto& node : path) {
-        drawTrajectory(node->traj, line_width, color);
-        DrawCircleV(state2screen(node->state), 0.5 * node_width, color);
+        if (node == nullptr) {
+            continue;
+        }
+        if (node->traj) {
+            drawTrajectory(node->traj.value(), line_width, COLOR_TRAJ_PRE_OPT);
+        }
+        DrawCircleV(state2screen(node->state), 0.5 * node_width, COLOR_NODE_PRE_OPT);
     }
 }
 
 void drawTree(const Tree& tree, const bool warm) {
-    for (const auto& node : tree.nodes) {
-        // TODO add UI button for coloring white or by time index.
+    // time_ix runs from 0 to NUM_STEER_SEGMENTS + 1, inclusive.
+    // NOTE: NUM_STEER_SEGMENTS + 1 == tree.layers.size()
+    // NOTE: start node is tree.layers[0].front()
+    // NOTE:  goal node is tree.layers[NUM_STEER_SEGMENTS + 1].front()
+    for (int time_ix = 0; time_ix <= NUM_STEER_SEGMENTS; ++time_ix) {
+        const Nodes& nodes = tree.layers[time_ix];
+        for (const auto& node : nodes) {
+            if (node == nullptr) {
+                continue;
+            }
+            if (node->parent == nullptr) {
+                continue;
+            }
 
-        // Color by time index.
-        const float line_width = 1.0;
-        const float c = static_cast<float>(node->time_ix) / static_cast<float>(TIME_IX_MAX);
-        const Color color = Fade(warm ? warmColormap(c) : coolColormap(c), 0.6f);
+            // TODO add UI button for coloring white or by time index.
 
-        // Skip drawing traj for nodes with null parent (e.g. root node),
-        // which have garbage node->traj.
-        if (node->parent != nullptr) {
-            drawTrajectory(node->traj, line_width, color);
+            // Color by time index.
+            const float line_width = 1.0;
+            const float c = static_cast<float>(time_ix) / static_cast<float>(TIME_IX_MAX);
+            const Color color = Fade(warm ? warmColormap(c) : coolColormap(c), 0.8f);
+            // const Color color = warm ? warmColormap(c) : coolColormap(c);
+
+            if (node->traj) {
+                drawTrajectory(node->traj.value(), line_width, color);
+            }
         }
     }
 }

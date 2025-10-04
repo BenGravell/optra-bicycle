@@ -8,10 +8,11 @@
 #include "core/util.h"
 #include "ilqr/solver.h"
 #include "ilqr/solver_settings.h"
-#include "rrt/rrt.h"
+#include "tree/tree.h"
 
-// RRT settings
-static constexpr int NUM_NODE_ATTEMPTS = 1000;
+// Tree settings
+static constexpr int NUM_NODE_ATTEMPTS_COLD = 4000;
+static constexpr int NUM_NODE_ATTEMPTS_WARM = 1000;
 
 struct TimingInfo {
     int tree_exp;  // ms
@@ -27,11 +28,11 @@ struct PlannerOutputs {
 };
 
 struct Planner {
-    static std::tuple<Tree, int> expandTree(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm) {
+    static std::tuple<Tree, int> expandTree(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm) {
         const float clock_start = GetTime();
 
         Tree tree;
-        tree.grow(start, goal, NUM_NODE_ATTEMPTS, warm);
+        tree.grow(start, goal, num_node_attempts, warm);
 
         const float clock_stop = GetTime();
         const int clock_time = static_cast<int>(std::ceil(1e6 * (clock_stop - clock_start)));
@@ -39,56 +40,27 @@ struct Planner {
         return {tree, clock_time};
     }
 
-    static std::tuple<ActionSequence<TRAJ_LENGTH_OPT>, double> convertPathToActionSequence(const Path& path) {
-        // Concatenate actions from all nodes of path, and accumulate time.
-        double total_time = 0.0;
-        std::vector<double> ts;
-        std::vector<double> accels;
-        std::vector<double> curvatures;
-        {
-            double t = 0.0;
-            for (const std::shared_ptr<Node>& node : path) {
-                total_time += node->total_time;
-                const double dt = node->total_time / node->traj.length;
-                for (int i = 0; i < node->traj.length; ++i) {
-                    ts.push_back(t);
-
-                    const ActionVector& action = node->traj.actionAt(i);
-                    accels.push_back(action(0));
-                    curvatures.push_back(action(1));
-
-                    t += dt;
-                }
-            }
-        }
-
-        // Interpolate by time into fixed-length action sequence.
-        const double dt = total_time / TRAJ_LENGTH_OPT;
+    static ActionSequence<TRAJ_LENGTH_OPT> convertPathToActionSequence(const Path& path) {
+        // Concatenate actions from all nodes of path.
         ActionSequence<TRAJ_LENGTH_OPT> action_sequence;
-        {
-            for (int i = 0; i < TRAJ_LENGTH_OPT; ++i) {
-                const double t = i * dt;
-                const double accel = interp(ts, accels, t);
-                const double curvature = interp(ts, curvatures, t);
-                const ActionVector action{accel, curvature};
-                action_sequence.col(i) = action;
+        int j = 0;
+        for (const std::shared_ptr<Node>& node : path) {
+            if (!node->traj) {
+                continue;
+            }
+            for (int i = 0; i < node->traj->length; ++i) {
+                action_sequence.col(j) = node->traj->actionAt(i);
+                j++;
             }
         }
-
-        return {action_sequence, total_time};
+        return action_sequence;
     }
 
-    static std::tuple<ActionSequence<TRAJ_LENGTH_OPT>, double> convertWarmToActionSequence(const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm) {
-        const ActionSequence<TRAJ_LENGTH_OPT> action_sequence = warm ? warm->traj.action_sequence : ActionSequence<TRAJ_LENGTH_OPT>::Zero();
-        static constexpr double total_time = DT * TRAJ_LENGTH_OPT;
-        return {action_sequence, total_time};
-    }
-
-    static std::tuple<Solution<TRAJ_LENGTH_OPT>, Trajectory<TRAJ_LENGTH_OPT>, int> optimizeTrajectory(const StateVector& start, const StateVector& goal, const double total_time, const ActionSequence<TRAJ_LENGTH_OPT>& action_sequence) {
+    static std::tuple<Solution<TRAJ_LENGTH_OPT>, Trajectory<TRAJ_LENGTH_OPT>, int> optimizeTrajectory(const StateVector& start, const StateVector& goal, const ActionSequence<TRAJ_LENGTH_OPT>& action_sequence) {
         const float clock_start = GetTime();
 
         // Define the optimal control problem.
-        const Problem problem = makeProblem(start, goal, total_time, TRAJ_LENGTH_OPT);
+        const Problem problem = makeProblem(start, goal, TRAJ_DURATION_OPT);
 
         // Get the pre-optimization trajectory for diagnostics later.
         Trajectory<TRAJ_LENGTH_OPT> traj_pre_opt;
@@ -136,34 +108,35 @@ struct Planner {
         action_sequence.row(1) += noise_k;
     }
 
-    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_action_jitter) {
-        const auto [tree, tree_exp_clock_time] = expandTree(start, goal, warm);
-        const Path path = tree.extractPathToGoal(goal);
-        auto [action_sequence, total_time] = convertPathToActionSequence(path);
+    static PlannerOutputs plan(const StateVector& start, const StateVector& goal, const int num_node_attempts, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_action_jitter) {
+        const auto [tree, tree_exp_clock_time] = expandTree(start, goal, num_node_attempts, warm);
+        const Path path = tree.extractPathToGoal();
+        auto action_sequence = convertPathToActionSequence(path);
 
         if (use_action_jitter) {
             // Add jitter on actions just before traj opt to try and jiggle out of bad local minima
             addJitter(action_sequence);
         }
 
-        const auto [solution, traj_pre_opt, traj_opt_clock_time] = optimizeTrajectory(start, goal, total_time, action_sequence);
+        const auto [solution, traj_pre_opt, traj_opt_clock_time] = optimizeTrajectory(start, goal, action_sequence);
 
         return {tree, path, solution, traj_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
     }
 
     static PlannerOutputs planTrajOptOnly(const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const bool use_action_jitter) {
-        Tree tree;
+        const Tree tree;
         static constexpr int tree_exp_clock_time = 0;
-        Path path;
 
-        auto [action_sequence, total_time] = convertWarmToActionSequence(warm);
+        ActionSequence<TRAJ_LENGTH_OPT> action_sequence = warm ? warm->traj.action_sequence : ActionSequence<TRAJ_LENGTH_OPT>::Zero();
 
         if (use_action_jitter) {
             // Add jitter on actions just before traj opt to try and jiggle out of bad local minima
             addJitter(action_sequence);
         }
 
-        const auto [solution, traj_pre_opt, traj_opt_clock_time] = optimizeTrajectory(start, goal, total_time, action_sequence);
+        const Path path;
+
+        const auto [solution, traj_pre_opt, traj_opt_clock_time] = optimizeTrajectory(start, goal, action_sequence);
 
         return {tree, path, solution, traj_pre_opt, {tree_exp_clock_time, traj_opt_clock_time}};
     }
@@ -189,7 +162,7 @@ struct MultiPlanner {
 
         if (settings.use_warm_start) {
             // Run the primary planner, including warm-start.
-            planner_outputs.pri = Planner::plan(start, goal, warm, settings.use_action_jitter);
+            planner_outputs.pri = Planner::plan(start, goal, NUM_NODE_ATTEMPTS_WARM, warm, settings.use_action_jitter);
         }
 
         if (settings.use_exploration_tree) {
@@ -197,7 +170,7 @@ struct MultiPlanner {
             // Experimental idea. Works well in practice to avoid getting stuck in local minima induced by warm-starting.
             // This probably outweighs the cost of running the planner twice,
             // especially if the secondary planner could run in a separate thread concurrently.
-            planner_outputs.aux = Planner::plan(start, goal, std::nullopt, settings.use_action_jitter);
+            planner_outputs.aux = Planner::plan(start, goal, NUM_NODE_ATTEMPTS_COLD, std::nullopt, settings.use_action_jitter);
         }
 
         if (!settings.use_warm_start && !settings.use_exploration_tree) {

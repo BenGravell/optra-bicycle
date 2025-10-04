@@ -19,14 +19,12 @@ struct Problem {
 };
 
 // Make a problem.
-inline Problem makeProblem(const StateVector initial_state, const StateVector terminal_state_target, const double total_time, const int traj_length) {
-    const double inverse_traj_length = 1.0 / traj_length;
-    const double delta_time = inverse_traj_length * total_time;
-
+inline Problem makeProblem(const StateVector initial_state, const StateVector terminal_state_target, const double total_time) {
     // Create the dynamics model.
-    const Dynamics dynamics{delta_time};
+    const Dynamics dynamics{DT};
 
     // Define the loss function.
+    const double inverse_traj_length = DT / total_time;
 
     // Soft terms
     static constexpr double soft_scale = 0.1;

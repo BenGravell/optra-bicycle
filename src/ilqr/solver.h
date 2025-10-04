@@ -51,7 +51,6 @@ struct Solution {
     Trajectory<N> traj;
     Policy<N> policy;
     double cost;
-    double total_time;
     SolveStatus solve_status;
     SolveRecord solve_record;
 };
@@ -154,13 +153,13 @@ class Solver {
             solve_record_.iters = iters;
 
             if (solve_status != SolveStatus::kInProgress) {
-                return {traj, policy, cost, problem_->total_time, solve_status, solve_record_};
+                return {traj, policy, cost, solve_status, solve_record_};
             }
         }
 
         // We have exceeded the max iterations.
         const SolveStatus solve_status = SolveStatus::kMaxItersExceeded;
-        return {traj, policy, cost, problem_->total_time, solve_status, solve_record_};
+        return {traj, policy, cost, solve_status, solve_record_};
     }
 
     // Impl that does not stop to check convergence, always uses max_iters.
@@ -202,7 +201,7 @@ class Solver {
         // Check for convergence.
         const SolveStatus solve_status = checkConvergence(cost_old, cost, ffgs_status);
 
-        return {traj, policy, cost, problem_->total_time, solve_status, solve_record_};
+        return {traj, policy, cost, solve_status, solve_record_};
     }
 
    private:

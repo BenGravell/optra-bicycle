@@ -7,12 +7,28 @@
 #include "core/space.h"
 
 // Length of trajectory for steering function, i.e. for one node.
-static constexpr uint64_t TRAJ_LENGTH_STEER = 20;
+// NOTE: Need to choose a reasonable middle ground.
+// 1. Larger TRAJ_LENGTH_STEER -> more reliance on steering function, more nodes per stage.
+//    - Typically helps the tree explore state space faster, less coverage.
+//    - May miss manuevers involving cusps / direction change.
+// 2. Smaller TRAJ_LENGTH_STEER -> less reliance on steering function, less nodes per stage.
+//    - Typically makes the tree explore state space slower, less coverage.
+//    - Much faster and reliable at finding maneuvers involving cusps / direction change.
+static constexpr uint64_t TRAJ_LENGTH_STEER = 5;
 
 // Length of trajectory for trajectory optimization, i.e. the entire trajectory.
 static constexpr uint64_t TRAJ_LENGTH_OPT = 100;
 
 static_assert((TRAJ_LENGTH_OPT % TRAJ_LENGTH_STEER) == 0, "TRAJ_LENGTH_OPT must be a multiple of TRAJ_LENGTH_STEER");
+
+// Duration of a single step, seconds
+static constexpr double DT = 0.1;
+
+// Duration of a steering function trajectory, in seconds.
+static constexpr double TRAJ_DURATION_STEER = DT * TRAJ_LENGTH_STEER;
+
+// Duration of a trajectory optimization trajectory, in seconds.
+static constexpr double TRAJ_DURATION_OPT = DT * TRAJ_LENGTH_OPT;
 
 template <int N>
 using StateSequence = Eigen::Matrix<double, NUM_STATES, N + 1>;

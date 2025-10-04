@@ -36,7 +36,6 @@ inline Color coolColormap(const float x) {
     return colormapFromArray(x, crest_r_colormap);
 }
 
-
 // Helper macro to convert hex to Color (expects 0xRRGGBBAA)
 #define HEX2COLOR(hex)                             \
     (Color) { (unsigned char)((hex >> 24) & 0xFF), \
@@ -77,3 +76,4 @@ static constexpr Color COLOR_WARM_START = ATLANTIS_TEAL;
 
 static constexpr Color COLOR_TRAJ_POST_OPT = WHITE;
 static constexpr Color COLOR_TRAJ_PRE_OPT = GRAY;
+static constexpr Color COLOR_NODE_PRE_OPT = LIGHTGRAY;

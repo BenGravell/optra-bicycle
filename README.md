@@ -2,15 +2,15 @@
 
 Optimization of trajectories for bicycle systems.
 
-The approach is to use RRT + iLQR.
+The approach is to use and ego motion sampling tree + iLQR.
 
-Rapidly exploring random tree (RRT) provides a strong initial guess at a good path to the goal that avoids obstacles.
+Ego motion sampling tree provides a strong initial guess at a good path to the goal that avoids obstacles.
 
 Iterative Linear Quadratic Regulator (iLQR) optimizes the trajectory.
 
-The optimized trajectory is fed into the RRT to warm-start it and re-use computations from previous iterations.
+The optimized trajectory is fed into the tree to warm-start it and re-use computations from previous iterations.
 
-The RRT and iLQR work together to provide rapid replanning and iterative optimization.
+The tree and iLQR work together to provide rapid replanning and iterative optimization.
 
 This planner runs extremely quickly, at rates as fast as 50 Hz.
 
