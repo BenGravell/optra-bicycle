@@ -2,14 +2,7 @@
 
 #include <raylib.h>
 
-#include "cmaps/crest_r.h"
-#include "cmaps/flare_r.h"
-#include "cmaps/inferno.h"
-#include "cmaps/magma.h"
-#include "cmaps/mako.h"
-#include "cmaps/rocket.h"
-#include "cmaps/turbo.h"
-#include "cmaps/viridis.h"
+#include "cmaps/guppy.h"
 
 // x must be in [0, 1]
 inline Color colormapFromArray(const float x, const std::array<std::array<uint8_t, 3>, 256>& colormap) {
@@ -25,15 +18,15 @@ inline Color colormapFromArray(const float x, const std::array<std::array<uint8_
 }
 
 inline Color colormap(const float x) {
-    return colormapFromArray(x, turbo_colormap);
+    return colormapFromArray(x, guppy_colormap);
 }
 
 inline Color warmColormap(const float x) {
-    return colormapFromArray(x, flare_r_colormap);
+    return colormap(0.5 - 0.5 * x);
 }
 
 inline Color coolColormap(const float x) {
-    return colormapFromArray(x, crest_r_colormap);
+    return colormap(0.5 + 0.5 * x);
 }
 
 // Helper macro to convert hex to Color (expects 0xRRGGBBAA)
