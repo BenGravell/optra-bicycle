@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Eigen/Dense>
-#include <ostream>
 
 // [x, y, yaw, speed]
 static constexpr uint64_t NUM_STATES = 4;

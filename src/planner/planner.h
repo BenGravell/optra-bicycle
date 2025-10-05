@@ -142,14 +142,13 @@ struct Planner {
 
 struct MultiPlannerOutputs {
     PlannerOutputs out;
-    PlannerOutputs pri;
-    PlannerOutputs aux;
-    PlannerOutputs def;
+    PlannerOutputs warm;
+    PlannerOutputs cold;
 };
 
 struct MultiPlannerSettings {
-    bool use_warm_start;
-    bool use_exploration_tree;
+    bool use_warm;
+    bool use_cold;
     bool use_action_jitter;
 };
 
@@ -158,52 +157,47 @@ struct MultiPlanner {
     plan(MultiPlannerSettings settings, const StateVector& start, const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm) {
         MultiPlannerOutputs planner_outputs;
 
-        if (settings.use_warm_start) {
+        if (settings.use_warm) {
             // Run the primary planner, including warm-start.
-            planner_outputs.pri = Planner::plan(start, goal, NUM_NODE_ATTEMPTS_WARM, warm, settings.use_action_jitter);
+            planner_outputs.warm = Planner::plan(start, goal, NUM_NODE_ATTEMPTS_WARM, warm, settings.use_action_jitter);
         }
 
-        if (settings.use_exploration_tree) {
+        if (settings.use_cold) {
             // Run the secondary planner, without warm-starting.
-            // Experimental idea. Works well in practice to avoid getting stuck in local minima induced by warm-starting.
+            // Works well to avoid getting stuck in local minima induced by warm-starting.
             // This probably outweighs the cost of running the planner twice,
             // especially if the secondary planner could run in a separate thread concurrently.
-            planner_outputs.aux = Planner::plan(start, goal, NUM_NODE_ATTEMPTS_COLD, std::nullopt, settings.use_action_jitter);
-        }
-
-        if (!settings.use_warm_start && !settings.use_exploration_tree) {
-            // Run the traj-opt-only planner.
-            planner_outputs.def = Planner::planTrajOptOnly(start, goal, warm, settings.use_action_jitter);
+            planner_outputs.cold = Planner::plan(start, goal, NUM_NODE_ATTEMPTS_COLD, std::nullopt, settings.use_action_jitter);
         }
 
         // Set the ultimate output planner_outputs.out.
-        if (settings.use_warm_start && !settings.use_exploration_tree) {
-            planner_outputs.out = planner_outputs.pri;
-        } else if (!settings.use_warm_start && settings.use_exploration_tree) {
-            planner_outputs.out = planner_outputs.aux;
-        } else if (settings.use_warm_start && settings.use_exploration_tree) {
-            // ---- Combine the pri and aux planner outputs.
+        if (settings.use_warm && !settings.use_cold) {
+            planner_outputs.out = planner_outputs.warm;
+        } else if (!settings.use_warm && settings.use_cold) {
+            planner_outputs.out = planner_outputs.cold;
+        } else if (settings.use_warm && settings.use_cold) {
+            // ---- Combine the warm and cold planner outputs.
 
             // Check if primary and auxiliary planner solutions are valid.
-            const bool pri_soln_valid = checkTargetHit(planner_outputs.pri.solution.traj.stateTerminal(), goal);
-            const bool aux_soln_valid = checkTargetHit(planner_outputs.aux.solution.traj.stateTerminal(), goal);
+            const bool pri_soln_valid = checkTargetHit(planner_outputs.warm.solution.traj.stateTerminal(), goal);
+            const bool aux_soln_valid = checkTargetHit(planner_outputs.cold.solution.traj.stateTerminal(), goal);
 
             // Decide which solution to use.
             bool use_aux_soln = false;
             if (pri_soln_valid && aux_soln_valid) {
                 // If both solutions are valid, use the lower-cost one.
-                const bool aux_cost_is_better = planner_outputs.aux.solution.cost < planner_outputs.pri.solution.cost;
+                const bool aux_cost_is_better = planner_outputs.cold.solution.cost < planner_outputs.warm.solution.cost;
                 use_aux_soln = aux_cost_is_better;
             } else if (!pri_soln_valid && aux_soln_valid) {
-                // If aux solution is valid but not the primary solution, use the aux one.
+                // If cold solution is valid but not the primary solution, use the cold one.
                 use_aux_soln = true;
             } else if (pri_soln_valid && !aux_soln_valid) {
-                // If pri solution is valid but not the aux solution, do not use the aux one.
+                // If warm solution is valid but not the cold solution, do not use the cold one.
                 use_aux_soln = false;
             } else {
                 // If neither solution is valid, use the one that hits closer to the goal.
-                const double d_pri = distanceHeuristic(planner_outputs.pri.solution.traj.stateTerminal(), goal);
-                const double d_aux = distanceHeuristic(planner_outputs.aux.solution.traj.stateTerminal(), goal);
+                const double d_pri = distanceHeuristic(planner_outputs.warm.solution.traj.stateTerminal(), goal);
+                const double d_aux = distanceHeuristic(planner_outputs.cold.solution.traj.stateTerminal(), goal);
                 const bool aux_hits_closer_to_goal = d_aux < d_pri;
                 use_aux_soln = aux_hits_closer_to_goal;
             }
@@ -211,21 +205,22 @@ struct MultiPlanner {
             // Replace outputs.
             // TODO replacing/adding each field is error prone, put in a function or handle more elegantly.
             if (use_aux_soln) {
-                planner_outputs.out.tree = planner_outputs.aux.tree;
-                planner_outputs.out.path = planner_outputs.aux.path;
-                planner_outputs.out.solution = planner_outputs.aux.solution;
-                planner_outputs.out.traj_pre_opt = planner_outputs.aux.traj_pre_opt;
+                planner_outputs.out.tree = planner_outputs.cold.tree;
+                planner_outputs.out.path = planner_outputs.cold.path;
+                planner_outputs.out.solution = planner_outputs.cold.solution;
+                planner_outputs.out.traj_pre_opt = planner_outputs.cold.traj_pre_opt;
             } else {
-                planner_outputs.out.tree = planner_outputs.pri.tree;
-                planner_outputs.out.path = planner_outputs.pri.path;
-                planner_outputs.out.solution = planner_outputs.pri.solution;
-                planner_outputs.out.traj_pre_opt = planner_outputs.pri.traj_pre_opt;
+                planner_outputs.out.tree = planner_outputs.warm.tree;
+                planner_outputs.out.path = planner_outputs.warm.path;
+                planner_outputs.out.solution = planner_outputs.warm.solution;
+                planner_outputs.out.traj_pre_opt = planner_outputs.warm.traj_pre_opt;
             }
             // Add outputs.
-            planner_outputs.out.timing_info.tree_exp = planner_outputs.pri.timing_info.tree_exp + planner_outputs.aux.timing_info.tree_exp;
-            planner_outputs.out.timing_info.traj_opt = planner_outputs.pri.timing_info.traj_opt + planner_outputs.aux.timing_info.traj_opt;
+            planner_outputs.out.timing_info.tree_exp = planner_outputs.warm.timing_info.tree_exp + planner_outputs.cold.timing_info.tree_exp;
+            planner_outputs.out.timing_info.traj_opt = planner_outputs.warm.timing_info.traj_opt + planner_outputs.cold.timing_info.traj_opt;
         } else {
-            planner_outputs.out = planner_outputs.def;
+            // Run the traj-opt-only planner.
+            planner_outputs.out = Planner::planTrajOptOnly(start, goal, warm, settings.use_action_jitter);
         }
 
         return planner_outputs;

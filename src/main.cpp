@@ -109,7 +109,7 @@ int main() {
     // Column 2
     Rectangle use_action_jitter_button = {button_x2, button_margin + 0 * (button_height + button_margin), button_width, button_height};
     Rectangle use_warm_start_button = {button_x2, button_margin + 1 * (button_height + button_margin), button_width, button_height};
-    Rectangle use_exploration_tree_button = {button_x2, button_margin + 2 * (button_height + button_margin), button_width, button_height};
+    Rectangle use_cold_start_button = {button_x2, button_margin + 2 * (button_height + button_margin), button_width, button_height};
 
     // Column 3
     Rectangle show_tree_button = {button_x3, button_margin + 0 * (button_height + button_margin), button_width, button_height};
@@ -120,8 +120,8 @@ int main() {
 
     // toggle-able states
     bool paused = false;
-    bool use_warm_start = true;
-    bool use_exploration_tree = true;
+    bool use_warm = true;
+    bool use_cold = true;
     bool use_action_jitter = true;
 
     bool show_tree = true;
@@ -138,7 +138,7 @@ int main() {
 
     // Initial plan
     MultiPlannerOutputs planner_outputs;
-    const MultiPlannerSettings planner_settings = {use_warm_start, use_exploration_tree, use_action_jitter};
+    const MultiPlannerSettings planner_settings = {use_warm, use_cold, use_action_jitter};
     planner_outputs = MultiPlanner::plan(planner_settings, start, goal, std::nullopt);
 
     float last_time = GetTime();
@@ -155,7 +155,7 @@ int main() {
         const bool mouse_in_pause_button = CheckCollisionPointRec(mouse_point, pause_button);
         const bool mouse_in_advance_button = CheckCollisionPointRec(mouse_point, advance_button);
         const bool mouse_in_use_warm_start_button = CheckCollisionPointRec(mouse_point, use_warm_start_button);
-        const bool mouse_in_use_exploration_tree_button = CheckCollisionPointRec(mouse_point, use_exploration_tree_button);
+        const bool mouse_in_use_cold_start_button = CheckCollisionPointRec(mouse_point, use_cold_start_button);
         const bool mouse_in_use_action_jitter_button = CheckCollisionPointRec(mouse_point, use_action_jitter_button);
 
         const bool mouse_in_show_tree_button = CheckCollisionPointRec(mouse_point, show_tree_button);
@@ -163,17 +163,17 @@ int main() {
         const bool mouse_in_show_post_opt_traj_button = CheckCollisionPointRec(mouse_point, show_post_opt_traj_button);
 
         // check if mouse is in any button
-        const bool mouse_in_button = mouse_in_pause_button || mouse_in_advance_button || mouse_in_use_warm_start_button || mouse_in_use_action_jitter_button || mouse_in_use_exploration_tree_button || mouse_in_show_tree_button || mouse_in_show_pre_opt_traj_button || mouse_in_show_post_opt_traj_button;
+        const bool mouse_in_button = mouse_in_pause_button || mouse_in_advance_button || mouse_in_use_warm_start_button || mouse_in_use_action_jitter_button || mouse_in_use_cold_start_button || mouse_in_show_tree_button || mouse_in_show_pre_opt_traj_button || mouse_in_show_post_opt_traj_button;
 
         // update toggle states
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_pause_button) {
             paused = !paused;
         }
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_warm_start_button) {
-            use_warm_start = !use_warm_start;
+            use_warm = !use_warm;
         }
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_exploration_tree_button) {
-            use_exploration_tree = !use_exploration_tree;
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_cold_start_button) {
+            use_cold = !use_cold;
         }
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && mouse_in_use_action_jitter_button) {
             use_action_jitter = !use_action_jitter;
@@ -220,7 +220,7 @@ int main() {
         // Update game state.
         const bool do_update_game = !paused || explicit_advance;
         if (do_update_game) {
-            const MultiPlannerSettings planner_settings = {use_warm_start, use_exploration_tree, use_action_jitter};
+            const MultiPlannerSettings planner_settings = {use_warm, use_cold, use_action_jitter};
             const std::optional<Solution<TRAJ_LENGTH_OPT>> warm = std::make_optional(planner_outputs.out.solution);
             planner_outputs = MultiPlanner::plan(planner_settings, start, goal, warm);
         }
@@ -245,11 +245,11 @@ int main() {
 
         // Draw tree(s).
         if (viz_settings.show_tree) {
-            if (use_exploration_tree) {
-                DrawTree(planner_outputs.aux.tree, false);
+            if (use_cold) {
+                DrawTree(planner_outputs.cold.tree, false);
             }
-            if (use_warm_start) {
-                DrawTree(planner_outputs.pri.tree, true);
+            if (use_warm) {
+                DrawTree(planner_outputs.warm.tree, true);
             }
         }
 
@@ -292,11 +292,11 @@ int main() {
 
         // Draw use-warm-start button
         DrawRectangleRec(use_warm_start_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(use_warm_start ? "Disable warm-start tree" : "Enable warm-start tree", use_warm_start_button.x + 10, use_warm_start_button.y + 15, 20, COLOR_BUTTON_TEXT);
+        DrawText(use_warm ? "Disable warm-start tree" : "Enable warm-start tree", use_warm_start_button.x + 10, use_warm_start_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw use-exploration-tree button
-        DrawRectangleRec(use_exploration_tree_button, COLOR_BUTTON_BACKGROUND);
-        DrawText(use_exploration_tree ? "Disable cold-start tree" : "Enable cold-start tree", use_exploration_tree_button.x + 10, use_exploration_tree_button.y + 15, 20, COLOR_BUTTON_TEXT);
+        DrawRectangleRec(use_cold_start_button, COLOR_BUTTON_BACKGROUND);
+        DrawText(use_cold ? "Disable cold-start tree" : "Enable cold-start tree", use_cold_start_button.x + 10, use_cold_start_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw use-action-jitter button
         DrawRectangleRec(use_action_jitter_button, COLOR_BUTTON_BACKGROUND);
@@ -359,8 +359,8 @@ int main() {
 
         // Column 3
         DrawTextEx(mono_font, TextFormat("    Post-opt cost, soln %9.6f", planner_outputs.out.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, warm %9.6f", planner_outputs.pri.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WARM_RED);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, cold %9.6f", planner_outputs.aux.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COOL_BLUE);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, warm %9.6f", planner_outputs.warm.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WARM_RED);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, cold %9.6f", planner_outputs.cold.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COOL_BLUE);
 
         // Time plots.
         {

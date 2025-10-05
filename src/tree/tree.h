@@ -3,8 +3,6 @@
 #include <Eigen/Dense>
 #include <algorithm>
 #include <fstream>
-#include <iomanip>
-#include <iostream>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -383,7 +381,7 @@ struct Tree {
             const bool constrain = true;
             const auto steer_outputs = steer(node->state, goal, constrain);
 
-            if (obstaclesCollidesWith(steer_outputs.traj)) {
+            if (obstaclesCollidesWith(obstacles, steer_outputs.traj)) {
                 continue;
             }
             if (outsideEnvironment(steer_outputs.traj)) {
@@ -469,7 +467,7 @@ struct Tree {
             path[time_ix - 1] = node;
             node = node->parent;
         }
-        // ensure the PARENT of the first node in the path is the root
+        // Ensure the PARENT of the first node in the path is the root
         assert(path.front()->parent->parent == nullptr);
 
         return path;

@@ -3,7 +3,6 @@
 #include <Eigen/Dense>
 #include <algorithm>
 #include <cstddef>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,19 +19,6 @@ enum class SolveStatus : uint8_t {
     kConverged = 1,
     kMaxItersExceeded = 2
 };
-
-inline std::string toString(SolveStatus status) {
-    switch (status) {
-        case SolveStatus::kInProgress:
-            return "In Progress";
-        case SolveStatus::kConverged:
-            return "Converged";
-        case SolveStatus::kMaxItersExceeded:
-            return "Max Iterations Exceeded";
-        default:
-            return "Unknown Status";
-    }
-}
 
 enum class FfgsSearchStatus : uint8_t {
     kSuccessImmediate = 0,
