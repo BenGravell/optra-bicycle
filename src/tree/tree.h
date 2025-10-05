@@ -300,6 +300,7 @@ struct Tree {
         // which is needed later for the final steer to goal node and extractPathToNode call,
         // which expects fully connected parent chain to root.
         // NOTE: this ignores collisions and outsideEnvironment constraints.
+        // TODO make this a method
         {
             std::shared_ptr<Node> parent = root_node_ptr;
             for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
