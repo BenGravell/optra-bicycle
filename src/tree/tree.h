@@ -207,7 +207,9 @@ inline bool checkTargetHit(const StateVector& state, const StateVector& target, 
     const double dyaw = delta(2);
     const double dv = delta(3);
 
-    // TODO use the TerminalStateParams. current numbers are set as a factor of the thresholds.
+    // TODO use the TerminalStateParams.
+    // Current numbers are hardcoded to match what is in problem.h -> makeProblem() -> terminal_state_params
+    // and set as a factor of those thresholds.
     const bool dx_hit = std::abs(dx) < (tol_factor * 0.01);
     const bool dy_hit = std::abs(dy) < (tol_factor * 0.01);
     const bool dyaw_hit = std::abs(dyaw) < (tol_factor * 0.02);
