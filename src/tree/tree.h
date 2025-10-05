@@ -200,7 +200,7 @@ inline bool outsideEnvironment(const Trajectory<N>& traj) {
     return false;
 }
 
-inline bool checkTargetHit(const StateVector& state, const StateVector& target, const double tol_factor = 1.0) {
+inline bool checkTargetHit(const StateVector& state, const StateVector& target) {
     const StateVector delta = state - target;
     const double dx = delta(0);
     const double dy = delta(1);
@@ -210,6 +210,7 @@ inline bool checkTargetHit(const StateVector& state, const StateVector& target, 
     // TODO use the TerminalStateParams.
     // Current numbers are hardcoded to match what is in problem.h -> makeProblem() -> terminal_state_params
     // and set as a factor of those thresholds.
+    static constexpr double tol_factor = 1.0;
     const bool dx_hit = std::abs(dx) < (tol_factor * 0.01);
     const bool dy_hit = std::abs(dy) < (tol_factor * 0.01);
     const bool dyaw_hit = std::abs(dyaw) < (tol_factor * 0.02);
@@ -352,6 +353,7 @@ struct Tree {
         state = traj.stateTerminal();
 
         // Trajectory is in collision.
+        // TODO factor this to a function
         for (const auto& obstacle : obstacles) {
             if (obstacle.collidesWith(traj)) {
                 in_collision = true;
@@ -411,8 +413,7 @@ struct Tree {
             }
 
             // Check if goal hit
-            static constexpr double tol_factor = 1.0;
-            const bool target_hit = checkTargetHit(node->state, goal, tol_factor);
+            const bool target_hit = checkTargetHit(node->state, goal);
             if (!target_hit) {
                 continue;
             }
