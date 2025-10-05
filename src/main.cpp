@@ -68,6 +68,15 @@ std::vector<double> extractCurvature(const Trajectory<N>& traj) {
     return vals;
 }
 
+template <int N>
+std::vector<double> extractYaw(const Trajectory<N>& traj) {
+    std::vector<double> vals;
+    for (const double val : traj.state_sequence.row(2)) {
+        vals.push_back(val);
+    }
+    return vals;
+}
+
 int main() {
     // Initialization
     SetConfigFlags(FLAG_VSYNC_HINT);
@@ -376,11 +385,15 @@ int main() {
             // Curvature data
             const TimePlotDataValues curvature_time_plot_data_vals = {extractCurvature(traj_post_opt), extractCurvature(traj_pre_opt)};
 
+            // Yaw data
+            const TimePlotDataValues yaw_time_plot_data_vals = {extractYaw(traj_post_opt), extractYaw(traj_pre_opt)};
+
             const double total_time = TRAJ_DURATION_OPT;
             drawTimePlot(speed_time_plot_data_vals, V_MAX, DT, total_time, viz_settings, 0, "Speed", mono_font);
             drawTimePlot(lon_accel_time_plot_data_vals, ACCEL_LON_MAX, DT, total_time, viz_settings, 1, "Lon Accel", mono_font);
             drawTimePlot(lat_accel_time_plot_data_vals, ACCEL_LAT_MAX, DT, total_time, viz_settings, 2, "Lat Accel", mono_font);
             drawTimePlot(curvature_time_plot_data_vals, CURVATURE_MAX, DT, total_time, viz_settings, 3, "Curvature", mono_font);
+            drawTimePlot(yaw_time_plot_data_vals, YAW_MAX, DT, total_time, viz_settings, 4, "Yaw", mono_font);
         }
 
         const float draw_elm_clock_stop = GetTime();
