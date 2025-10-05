@@ -4,6 +4,9 @@ project(optra_bicycle)
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 
+# Enable compile_commands.json (required by IWYU)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Find packages
 find_package(glog REQUIRED)
 find_package(Eigen3 REQUIRED)
