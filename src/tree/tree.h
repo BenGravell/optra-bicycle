@@ -108,13 +108,11 @@ inline SteerOutputs steer(const StateVector& start, const StateVector& goal, con
 using Path = std::array<std::shared_ptr<Node>, NUM_STEER_SEGMENTS>;
 
 inline double urand() {
-    // TODO this is inefficient, creating a new distribution on every call (?)
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
+    static std::uniform_real_distribution<double> dist(0.0, 1.0);
     return dist(gen);
 }
 
 inline double urand(const double x_min, const double x_max) {
-    // TODO this is inefficient, creating a new distribution on every call (?)
     std::uniform_real_distribution<double> dist(x_min, x_max);
     return dist(gen);
 }
@@ -165,11 +163,6 @@ inline StateVector sampleNearWarm(const Solution<TRAJ_LENGTH_OPT>& warm, const i
 }
 
 inline StateVector sample(const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const int time_ix) {
-    // Always sample around the warm-start trajectory if available.
-    if (warm) {
-        return sampleNearWarm(warm.value(), time_ix);
-    }
-
     // Sample near the goal sometimes.
     static constexpr double goal_sampling_proba = 0.02;
     const double selector = urand();
@@ -177,6 +170,11 @@ inline StateVector sample(const StateVector& goal, const std::optional<Solution<
     const double perturb_factor = 1.0;
     if (sample_near_goal) {
         return sampleNear(goal, perturb_factor);
+    }
+
+    // Sample around the warm-start trajectory, if available.
+    if (warm) {
+        return sampleNearWarm(warm.value(), time_ix);
     }
 
     return sample();
@@ -284,35 +282,6 @@ struct Tree {
         return nearest_node;
     }
 
-    // Get the node which represents the cheapest solution,
-    // i.e. minimum cost-to-come that gets near enough to the target w/o additional steering.
-    const std::shared_ptr<Node> getCheapestSolutionPrecise(const StateVector& target, const int target_time_ix) const {
-        double min_cost = std::numeric_limits<double>::max();
-        std::shared_ptr<Node> best_node = nullptr;
-        const Nodes& nodes = layers[target_time_ix - 1];
-        for (std::shared_ptr<Node> node : nodes) {
-            // Check if target was hit.
-            static constexpr double tol_factor = 20.0;
-            const bool target_hit = checkTargetHit(node->state, target, tol_factor);
-
-            // Check if cost is improved compared with current best.
-            const double cost = node->cost_to_come;
-            const bool cost_improved = cost < min_cost;
-
-            const bool found_new_best = cost_improved && target_hit;
-            if (found_new_best) {
-                min_cost = cost;
-                best_node = node;
-            }
-        }
-
-        if (best_node == nullptr) {
-            return getNearest(target, target_time_ix);
-        }
-
-        return best_node;
-    }
-
     void addNode(const std::shared_ptr<Node>& node, const int time_ix) {
         layers[time_ix].push_back(node);
     }
@@ -396,11 +365,6 @@ struct Tree {
                 // // Use getNearestLimited to keep the search for a parent quick, even for large trees.
                 // static constexpr int max_num_neighbors = 64;
                 // std::shared_ptr<Node> parent = getNearestLimited(state, time_ix, max_num_neighbors);
-
-                // // Use getNearestLimitedV2 to keep the search for a parent quick, even for large trees.
-                // // Can be even faster than getNearestLimited
-                // static constexpr int max_num_neighbors = 64;
-                // std::shared_ptr<Node> parent = getNearestLimitedV2(state, time_ix, max_num_neighbors);
 
                 // Could not find a parent.
                 if (parent == nullptr) {
