@@ -1,4 +1,5 @@
 #include <raylib.h>
+#include <raymath.h>
 
 #include <chrono>
 #include <cmath>
@@ -15,7 +16,6 @@
 #include "app/colors.h"
 #include "app/drawing.h"
 #include "app/transforms.h"
-#include "core/interp.h"
 #include "core/problem.h"
 #include "core/rollout.h"
 #include "core/search_space.h"
@@ -25,8 +25,6 @@
 #include "ilqr/solver_settings.h"
 #include "planner/planner.h"
 #include "tree/tree.h"
-
-static constexpr int GAME_FPS = 60;
 
 template <int N>
 std::vector<double> extractSpeed(const Trajectory<N>& traj) {
@@ -143,8 +141,6 @@ int main() {
     const MultiPlannerSettings planner_settings = {use_warm_start, use_exploration_tree, use_action_jitter};
     planner_outputs = MultiPlanner::plan(planner_settings, start, goal, std::nullopt);
 
-    SetTargetFPS(GAME_FPS);
-
     float last_time = GetTime();
 
     while (!WindowShouldClose()) {
@@ -250,10 +246,10 @@ int main() {
         // Draw tree(s).
         if (viz_settings.show_tree) {
             if (use_exploration_tree) {
-                drawTree(planner_outputs.aux.tree, false);
+                DrawTree(planner_outputs.aux.tree, false);
             }
             if (use_warm_start) {
-                drawTree(planner_outputs.pri.tree, true);
+                DrawTree(planner_outputs.pri.tree, true);
             }
         }
 
@@ -261,25 +257,25 @@ int main() {
         if (viz_settings.show_pre_opt_traj) {
             static constexpr float line_width = 8;
             static constexpr float node_width = 16;
-            // Draw trajectory so that even if drawPath draws nothing we still see the pre-opt traj.
+            // Draw trajectory so that even if DrawPath draws nothing we still see the pre-opt traj.
             // That happens when all trees are disabled and we do trajOptOnly.
-            drawTrajectory(planner_outputs.out.traj_pre_opt, line_width, COLOR_TRAJ_PRE_OPT);
+            DrawTrajectory(planner_outputs.out.traj_pre_opt, line_width, COLOR_TRAJ_PRE_OPT);
             // Draw path so we see the nodes in the pre-opt traj path, if available.
-            drawPath(planner_outputs.out.path, line_width, node_width);
+            DrawPath(planner_outputs.out.path, line_width, node_width);
         }
 
         // Draw post-opt trajectory (iLQR solution).
         if (viz_settings.show_post_opt_traj) {
             static constexpr float line_width = 4;
-            drawTrajectory(planner_outputs.out.solution.traj, line_width, COLOR_TRAJ_POST_OPT);
+            DrawTrajectory(planner_outputs.out.solution.traj, line_width, COLOR_TRAJ_POST_OPT);
         }
 
         // Draw start point and the goal point
         DrawSquare(start_point, 10, WHITE);
         DrawSquare(start_point, 6, BLACK);
 
-        DrawStar(goal_point, 16, WHITE);
-        DrawStar(goal_point, 8, BLACK);
+        DrawGoalTriangle(goal_point, 16, WHITE);
+        DrawGoalTriangle(goal_point, 8, BLACK);
 
         if (paused) {
             // Show pause overlay
@@ -338,10 +334,10 @@ int main() {
         if (game_upd_clock_time < 0) {
             game_upd_clock_time = static_cast<int>(1e6 * delta_time);
         }
-        tree_exp_clock_time = static_cast<int>(lerp(planner_outputs.out.timing_info.tree_exp, tree_exp_clock_time, paused ? 0.0 : tree_exp_clock_momentum));
-        traj_opt_clock_time = static_cast<int>(lerp(planner_outputs.out.timing_info.traj_opt, traj_opt_clock_time, paused ? 0.0 : traj_opt_clock_momentum));
-        draw_elm_clock_time = static_cast<int>(lerp(draw_elm_clock_time_next, draw_elm_clock_time, draw_elm_clock_momentum));
-        game_upd_clock_time = static_cast<int>(lerp(static_cast<int>(1e6 * delta_time), game_upd_clock_time, game_upd_clock_momentum));
+        tree_exp_clock_time = static_cast<int>(Lerp(planner_outputs.out.timing_info.tree_exp, tree_exp_clock_time, paused ? 0.0 : tree_exp_clock_momentum));
+        traj_opt_clock_time = static_cast<int>(Lerp(planner_outputs.out.timing_info.traj_opt, traj_opt_clock_time, paused ? 0.0 : traj_opt_clock_momentum));
+        draw_elm_clock_time = static_cast<int>(Lerp(draw_elm_clock_time_next, draw_elm_clock_time, draw_elm_clock_momentum));
+        game_upd_clock_time = static_cast<int>(Lerp(static_cast<int>(1e6 * delta_time), game_upd_clock_time, game_upd_clock_momentum));
 
         // Column 1
         DrawTextEx(mono_font, TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
@@ -388,11 +384,11 @@ int main() {
             const TimePlotDataValues yaw_time_plot_data_vals = {extractYaw(traj_post_opt), extractYaw(traj_pre_opt)};
 
             const double total_time = TRAJ_DURATION_OPT;
-            drawTimePlot(speed_time_plot_data_vals, V_MAX, DT, total_time, viz_settings, 0, "Speed", mono_font);
-            drawTimePlot(lon_accel_time_plot_data_vals, ACCEL_LON_MAX, DT, total_time, viz_settings, 1, "Lon Accel", mono_font);
-            drawTimePlot(lat_accel_time_plot_data_vals, ACCEL_LAT_MAX, DT, total_time, viz_settings, 2, "Lat Accel", mono_font);
-            drawTimePlot(curvature_time_plot_data_vals, CURVATURE_MAX, DT, total_time, viz_settings, 3, "Curvature", mono_font);
-            drawTimePlot(yaw_time_plot_data_vals, YAW_MAX, DT, total_time, viz_settings, 4, "Yaw", mono_font);
+            DrawTimePlot(speed_time_plot_data_vals, V_MAX, DT, total_time, viz_settings, 0, "Speed", mono_font);
+            DrawTimePlot(lon_accel_time_plot_data_vals, ACCEL_LON_MAX, DT, total_time, viz_settings, 1, "Lon Accel", mono_font);
+            DrawTimePlot(lat_accel_time_plot_data_vals, ACCEL_LAT_MAX, DT, total_time, viz_settings, 2, "Lat Accel", mono_font);
+            DrawTimePlot(curvature_time_plot_data_vals, CURVATURE_MAX, DT, total_time, viz_settings, 3, "Curvature", mono_font);
+            DrawTimePlot(yaw_time_plot_data_vals, YAW_MAX, DT, total_time, viz_settings, 4, "Yaw", mono_font);
         }
 
         const float draw_elm_clock_stop = GetTime();

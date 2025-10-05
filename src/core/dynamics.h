@@ -18,6 +18,7 @@ struct Dynamics {
         const double speed = state(3);
         const double accel = action(0);
         const double curvature = action(1);
+
         // Assemble output.
         return state + DT * StateVector{
                                 speed * std::cos(yaw),
@@ -34,8 +35,8 @@ struct Dynamics {
         const double curvature = action(1);
 
         // Compute intermediate quantities.
-        const double dt_sin_yaw = DT * std::sin(yaw);
         const double dt_cos_yaw = DT * std::cos(yaw);
+        const double dt_sin_yaw = DT * std::sin(yaw);
 
         // Assemble output.
         StateStateMatrix A;

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "core/interp.h"
 #include "core/problem.h"
 #include "core/rollout.h"
 #include "core/space.h"
