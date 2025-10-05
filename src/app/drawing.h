@@ -27,7 +27,7 @@ void drawTrajectory(const Trajectory<N>& traj, const float line_width, const Col
 }
 
 void drawPath(const Path& path, const float line_width, const float node_width) {
-    for (const auto& node : path) {
+    for (const NodePtr& node : path) {
         if (node == nullptr) {
             continue;
         }
@@ -45,7 +45,7 @@ void drawTree(const Tree& tree, const bool warm) {
     // NOTE:  goal node is tree.layers[NUM_STEER_SEGMENTS + 1].front()
     for (int time_ix = 0; time_ix <= NUM_STEER_SEGMENTS; ++time_ix) {
         const Nodes& nodes = tree.layers[time_ix];
-        for (const auto& node : nodes) {
+        for (const NodePtr& node : nodes) {
             if (node == nullptr) {
                 continue;
             }

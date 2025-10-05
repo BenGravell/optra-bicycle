@@ -1,6 +1,5 @@
 #pragma once
 
-#include "core/position.h"
 #include "core/space.h"
 #include "core/trajectory.h"
 #include "core/util.h"
@@ -23,20 +22,20 @@
 //     }
 // };
 
-inline Eigen::Vector2d positionDelta(const Position& position, const StateVector& state) {
+inline Eigen::Vector2d positionDelta(const Vector2& position, const StateVector& state) {
     return state.head(2) - Eigen::Vector2d(position.x, position.y);
 }
 
-inline double distanceSquared(const Position& position, const StateVector& state) {
+inline double distanceSquared(const Vector2& position, const StateVector& state) {
     return positionDelta(position, state).squaredNorm();
 }
 
-inline double distance(const Position& position, const StateVector& state) {
+inline double distance(const Vector2& position, const StateVector& state) {
     return positionDelta(position, state).norm();
 }
 
 struct Obstacle {
-    const Position center;
+    const Vector2 center;
     const double radius;
 
     double clearance(const StateVector& state) const {

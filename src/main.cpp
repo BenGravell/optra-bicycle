@@ -225,7 +225,7 @@ int main() {
         const bool do_update_game = !paused || explicit_advance;
         if (do_update_game) {
             const MultiPlannerSettings planner_settings = {use_warm_start, use_exploration_tree, use_action_jitter};
-            const auto warm = std::make_optional(planner_outputs.out.solution);
+            const std::optional<Solution<TRAJ_LENGTH_OPT>> warm = std::make_optional(planner_outputs.out.solution);
             planner_outputs = MultiPlanner::plan(planner_settings, start, goal, warm);
         }
 
@@ -355,16 +355,16 @@ int main() {
         // Column 2
         DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
         int num_nodes = 0;
-        for (const auto nodes : planner_outputs.out.tree.layers) {
+        for (const Nodes& nodes : planner_outputs.out.tree.layers) {
             num_nodes += nodes.size();
         }
         DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", num_nodes), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
         DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, 20, 1, COLOR_STAT);
 
         // Column 3
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, sol %9.6f", planner_outputs.out.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WARM_RED);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, aux %9.6f", planner_outputs.aux.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COOL_BLUE);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, soln %9.6f", planner_outputs.out.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, warm %9.6f", planner_outputs.pri.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WARM_RED);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, cold %9.6f", planner_outputs.aux.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COOL_BLUE);
 
         // Time plots.
         {

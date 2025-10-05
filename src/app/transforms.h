@@ -2,7 +2,6 @@
 
 #include <raylib.h>
 
-#include "core/position.h"
 #include "core/search_space.h"
 #include "core/space.h"
 
@@ -25,11 +24,6 @@ static constexpr int SCREEN_HEIGHT = (2 * GUTTER_SS_Y) + (Y_SIZE * SCALE_SS);
 
 inline Vector2 state2screen(const Vector2 state) {
     return {ORIGIN_SS.x + SCALE_SS * state.x, ORIGIN_SS.y + SCALE_SS * state.y};
-}
-
-inline Vector2 state2screen(const Position state) {
-    const Vector2 vec{static_cast<float>(state.x), static_cast<float>(state.y)};
-    return state2screen(vec);
 }
 
 inline Vector2 state2screen(const StateVector state) {
