@@ -1,6 +1,5 @@
 #pragma once
 
-#include "core/dynamics.h"
 #include "core/interp.h"
 #include "core/problem.h"
 #include "core/rollout.h"
@@ -64,7 +63,7 @@ struct Planner {
 
         // Get the pre-optimization trajectory for diagnostics later.
         Trajectory<TRAJ_LENGTH_OPT> traj_pre_opt;
-        rolloutOpenLoop(action_sequence, start, problem.dynamics, traj_pre_opt);
+        rolloutOpenLoop(action_sequence, start, traj_pre_opt);
 
         // Solver settings.
         const SolverSettings settings = SolverSettings();

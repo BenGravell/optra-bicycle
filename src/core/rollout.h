@@ -9,20 +9,35 @@
 #include "core/space.h"
 #include "core/trajectory.h"
 
+// Special function to efficiently compute the end state after using zero action for t seconds.
+StateVector rolloutZeroAction(const StateVector& start, const double t) {
+    const double x = start(0);
+    const double y = start(1);
+    const double yaw = start(2);
+    const double v = start(3);
+
+    const double vx = v * std::cos(yaw);
+    const double vy = v * std::sin(yaw);
+    const double dx = vx * t;
+    const double dy = vy * t;
+
+    return {x + dx, y + dy, yaw, v};
+}
+
 template <int N>
-inline void rolloutOpenLoop(const ActionSequence<N>& action_sequence, const StateVector& initial_state, const Dynamics& dynamics, Trajectory<N>& traj) {
+inline void rolloutOpenLoop(const ActionSequence<N>& action_sequence, const StateVector& initial_state, Trajectory<N>& traj) {
     // Initialize the first state in the state sequence.
     traj.setStateAt(0, initial_state);
 
     // Simulate dynamics forward using open-loop action sequence.
     for (size_t stage_idx = 0; stage_idx < traj.length; ++stage_idx) {
         traj.setActionAt(stage_idx, action_sequence.col(stage_idx));
-        traj.setStateAt(stage_idx + 1, dynamics.forward(traj.stateAt(stage_idx), traj.actionAt(stage_idx)));
+        traj.setStateAt(stage_idx + 1, Dynamics::forward(traj.stateAt(stage_idx), traj.actionAt(stage_idx)));
     }
 }
 
 template <int N>
-inline void rolloutOpenLoopConstrained(const ActionSequence<N>& action_sequence, const StateVector& initial_state, const Dynamics& dynamics, Trajectory<N>& traj) {
+inline void rolloutOpenLoopConstrained(const ActionSequence<N>& action_sequence, const StateVector& initial_state, Trajectory<N>& traj) {
     // Initialize the first state in the state sequence.
     traj.setStateAt(0, initial_state);
 
@@ -55,12 +70,12 @@ inline void rolloutOpenLoopConstrained(const ActionSequence<N>& action_sequence,
 
         // Simulate forward one step.
         traj.setActionAt(stage_idx, action);
-        traj.setStateAt(stage_idx + 1, dynamics.forward(state, action));
+        traj.setStateAt(stage_idx + 1, Dynamics::forward(state, action));
     }
 }
 
 template <int N>
-inline void rolloutClosedLoop(const Policy<N>& policy, const Trajectory<N>& traj_ref, const Dynamics& dynamics, Trajectory<N>& traj) {
+inline void rolloutClosedLoop(const Policy<N>& policy, const Trajectory<N>& traj_ref, Trajectory<N>& traj) {
     // Copy initial state from reference trajectory to trajectory.
     traj.setStateAt(0, traj_ref.stateAt(0));
 
@@ -78,6 +93,6 @@ inline void rolloutClosedLoop(const Policy<N>& policy, const Trajectory<N>& traj
         traj.setActionAt(stage_idx, action);
 
         // Simulate forward one step.
-        traj.setStateAt(stage_idx + 1, dynamics.forward(state, action));
+        traj.setStateAt(stage_idx + 1, Dynamics::forward(state, action));
     }
 }

@@ -6,13 +6,11 @@
 #include <vector>
 
 #include "core/constants.h"
-#include "core/dynamics.h"
 #include "core/loss.h"
 #include "core/trajectory.h"
 
 // Struct for a trajectory optimization problem
 struct Problem {
-    Dynamics dynamics;
     Loss loss;
     StateVector initial_state;
     double total_time;
@@ -20,9 +18,6 @@ struct Problem {
 
 // Make a problem.
 inline Problem makeProblem(const StateVector initial_state, const StateVector terminal_state_target, const double total_time) {
-    // Create the dynamics model.
-    const Dynamics dynamics{DT};
-
     // Define the loss function.
     const double inverse_traj_length = DT / total_time;
 
@@ -87,5 +82,5 @@ inline Problem makeProblem(const StateVector initial_state, const StateVector te
     const Loss loss{soft_params, vehicle_limits, vehicle_limits_params, terminal_state_params, terminal_state_target, inverse_traj_length};
 
     // Return the constructed optimal control problem.
-    return Problem{dynamics, loss, initial_state, total_time};
+    return Problem{loss, initial_state, total_time};
 }

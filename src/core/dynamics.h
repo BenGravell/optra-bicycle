@@ -10,24 +10,23 @@ struct Jacobian {
     const StateActionMatrix B;
 };
 
+// Dynamics of a kinematic bicycle with forward Euler discretization.
 struct Dynamics {
-    const double delta_time;
-
-    StateVector forward(const StateVector& state, const ActionVector& action) const {
+    static StateVector forward(const StateVector& state, const ActionVector& action) {
         // Extract states and actions.
         const double yaw = state(2);
         const double speed = state(3);
         const double accel = action(0);
         const double curvature = action(1);
         // Assemble output.
-        return state + delta_time * StateVector{
-                                        speed * std::cos(yaw),
-                                        speed * std::sin(yaw),
-                                        speed * curvature,
-                                        accel};
+        return state + DT * StateVector{
+                                speed * std::cos(yaw),
+                                speed * std::sin(yaw),
+                                speed * curvature,
+                                accel};
     }
 
-    Jacobian jacobian(const StateVector& state, const ActionVector& action) const {
+    static Jacobian jacobian(const StateVector& state, const ActionVector& action) {
         // Extract states and actions.
         const double yaw = state(2);
         const double speed = state(3);
@@ -35,8 +34,8 @@ struct Dynamics {
         const double curvature = action(1);
 
         // Compute intermediate quantities.
-        const double dt_sin_yaw = delta_time * std::sin(yaw);
-        const double dt_cos_yaw = delta_time * std::cos(yaw);
+        const double dt_sin_yaw = DT * std::sin(yaw);
+        const double dt_cos_yaw = DT * std::cos(yaw);
 
         // Assemble output.
         StateStateMatrix A;
@@ -48,8 +47,8 @@ struct Dynamics {
         StateActionMatrix B;
         B << 0, 0,
             0, 0,
-            0, speed * delta_time,
-            delta_time, 0;
+            0, speed * DT,
+            DT, 0;
 
         return {A, B};
     }

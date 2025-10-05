@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "core/dynamics.h"
 #include "core/loss.h"
 #include "core/policy.h"
 #include "core/problem.h"
@@ -73,7 +72,7 @@ class Solver {
         for (size_t num_attempts = 1; num_attempts <= settings_->max_feedfrwd_gain_search_attempts; ++num_attempts) {
             // Perform a forward pass to get a new candidate trajectory.
             solve_record_.rollouts += 1;
-            rolloutClosedLoop(policy, traj, problem_->dynamics, traj_dummy);
+            rolloutClosedLoop(policy, traj, traj_dummy);
 
             // Evaluate the cost of the candidate trajectory and see if it is acceptable.
             const double cost_candidate = problem_->loss.totalValue(traj_dummy);
@@ -128,7 +127,7 @@ class Solver {
         // Initialize trajectory, policy, cost, and regularization.
         Trajectory<N> traj;
         Trajectory<N> traj_dummy;
-        rolloutOpenLoop(action_sequence, problem_->initial_state, problem_->dynamics, traj);
+        rolloutOpenLoop(action_sequence, problem_->initial_state, traj);
         Policy<N> policy;
         double cost = problem_->loss.totalValue(traj);
         double reg = settings_->regularization_init;
@@ -169,7 +168,7 @@ class Solver {
         // Initialize trajectory, policy, cost, and regularization.
         Trajectory<N> traj;
         Trajectory<N> traj_dummy;
-        rolloutOpenLoop(action_sequence, problem_->initial_state, problem_->dynamics, traj);
+        rolloutOpenLoop(action_sequence, problem_->initial_state, traj);
         Policy<N> policy;
         double cost = problem_->loss.totalValue(traj);
         double cost_old = cost;

@@ -4,7 +4,6 @@
 
 #include "app/colors.h"
 #include "app/transforms.h"
-#include "core/dynamics.h"
 #include "core/interp.h"
 #include "core/problem.h"
 #include "core/rollout.h"
@@ -54,13 +53,10 @@ void drawTree(const Tree& tree, const bool warm) {
                 continue;
             }
 
-            // TODO add UI button for coloring white or by time index.
-
             // Color by time index.
             const float line_width = 1.0;
             const float c = static_cast<float>(time_ix) / static_cast<float>(TIME_IX_MAX);
             const Color color = Fade(warm ? warmColormap(c) : coolColormap(c), 0.8f);
-            // const Color color = warm ? warmColormap(c) : coolColormap(c);
 
             if (node->traj) {
                 drawTrajectory(node->traj.value(), line_width, color);

@@ -92,7 +92,7 @@ class BackwardPassRunner {
         const StateActionValueQ l = problem_->loss.gradientAndHessian(state, action);
 
         // Get dynamics derivatives.
-        const Jacobian jac = problem_->dynamics.jacobian(state, action);
+        const Jacobian jac = Dynamics::jacobian(state, action);
         const StateStateMatrix& A = jac.A;
         const StateActionMatrix& B = jac.B;
 

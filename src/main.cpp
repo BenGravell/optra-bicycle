@@ -15,7 +15,6 @@
 #include "app/colors.h"
 #include "app/drawing.h"
 #include "app/transforms.h"
-#include "core/dynamics.h"
 #include "core/interp.h"
 #include "core/problem.h"
 #include "core/rollout.h"

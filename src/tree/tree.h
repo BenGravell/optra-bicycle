@@ -38,22 +38,6 @@ static constexpr int TIME_IX_GOAL = NUM_STEER_SEGMENTS;
 // Time index runs from 0 to NUM_STEER_SEGMENTS - 1, endpoints inclusive, leaving one time ix for goal node.
 static constexpr int TIME_IX_MAX = TIME_IX_GOAL - 1;
 
-// Special function to efficiently compute the end state after using zero action for t seconds.
-// TODO move this to rollout or dynamics
-StateVector rolloutZeroAction(const StateVector& start, const double t) {
-    const double x = start(0);
-    const double y = start(1);
-    const double yaw = start(2);
-    const double v = start(3);
-
-    const double vx = v * std::cos(yaw);
-    const double vy = v * std::sin(yaw);
-    const double dx = vx * t;
-    const double dy = vy * t;
-
-    return {x + dx, y + dy, yaw, v};
-}
-
 inline double distance(const StateVector& start, const StateVector& goal) {
     return (goal.head(2) - start.head(2)).norm();
 }
@@ -108,12 +92,11 @@ inline SteerOutputs steer(const StateVector& start, const StateVector& goal, con
     const ActionSequence<TRAJ_LENGTH_STEER> action_sequence = steerCubic<TRAJ_LENGTH_STEER>(start, goal, TRAJ_DURATION_STEER);
 
     // Rollout.
-    const Dynamics dynamics{DT};
     Trajectory<TRAJ_LENGTH_STEER> traj;
     if (constrain) {
-        rolloutOpenLoopConstrained(action_sequence, start, dynamics, traj);
+        rolloutOpenLoopConstrained(action_sequence, start, traj);
     } else {
-        rolloutOpenLoop(action_sequence, start, dynamics, traj);
+        rolloutOpenLoop(action_sequence, start, traj);
     }
 
     // Calculate cost.
@@ -366,9 +349,8 @@ struct Tree {
 
         // Re-rollout the warm-start actions from the given start.
         if (warm) {
-            const Dynamics dynamics{DT};
             Trajectory<TRAJ_LENGTH_OPT> traj;
-            rolloutOpenLoopConstrained(warm->traj.action_sequence, start, dynamics, traj);
+            rolloutOpenLoopConstrained(warm->traj.action_sequence, start, traj);
             warm->traj = traj;
         }
 

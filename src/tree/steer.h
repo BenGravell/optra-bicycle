@@ -5,12 +5,10 @@
 #include <stdexcept>
 #include <vector>
 
+#include "core/constants.h"
 #include "core/space.h"
 #include "core/trajectory.h"
 #include "core/util.h"
-
-// TODO move to constants.h or make function arg.
-static constexpr double V_ABS_MIN = 0.01;
 
 struct BoundaryCondition {
     const double x;
@@ -55,7 +53,7 @@ inline CubicCoeffs bc2coeffs(const BoundaryConditionsStartEnd& bc, const double 
 
 // Convert full state (x, y, yaw, v) start and goal states to boundary conditions in x and y.
 inline BoundaryConditionsXY states2bcs(const StateVector& start, const StateVector& goal) {
-   const double x0 = start(0);
+    const double x0 = start(0);
     const double y0 = start(1);
     const double yaw_0 = start(2);
     const double v0 = start(3);
@@ -148,7 +146,7 @@ inline ActionSequence<N> steerCubic(const StateVector& start, const StateVector&
         // Compute actions.
         double accel = 0;
         double curvature = 0;
-        if (v > V_ABS_MIN) {
+        if (v > V_ABS_MIN_FOR_STEER) {
             // Nominal case.
             // Equations from differential flatness for kinematic bicycle.
             accel = (dxdt * d2xdt2 + dydt * d2ydt2) / v;
