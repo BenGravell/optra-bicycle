@@ -23,7 +23,4 @@ struct Node {
 
     // Cost to come to this node from the root of the tree.
     const double cost_to_come;
-
-    // Whether this node came from warm-start or not.
-    const bool is_warm{false};
 };

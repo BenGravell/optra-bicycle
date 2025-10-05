@@ -154,8 +154,8 @@ void drawTimePlot(const TimePlotDataValues& vals, const double val_max, const do
     const int plot_y = SCREEN_HEIGHT - (2 * PLOT_HALF_HEIGHT) - TIME_PLOT_MARGIN_Y;
 
     // Draw border
-    DrawRectangleLines(plot_x, plot_y, PLOT_WIDTH, PLOT_HALF_HEIGHT, GRAY);
-    DrawRectangleLines(plot_x, plot_y + PLOT_HALF_HEIGHT, PLOT_WIDTH, PLOT_HALF_HEIGHT, GRAY);
+    DrawRectangleLines(plot_x, plot_y, PLOT_WIDTH, PLOT_HALF_HEIGHT, COLOR_GRAY_160);
+    DrawRectangleLines(plot_x, plot_y + PLOT_HALF_HEIGHT, PLOT_WIDTH, PLOT_HALF_HEIGHT, COLOR_GRAY_160);
 
     // Draw title
     const std::string title = name + " vs Time";

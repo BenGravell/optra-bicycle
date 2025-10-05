@@ -390,8 +390,7 @@ struct Tree {
                     }
                 }
                 const double sub_cost = softLoss(sub_traj);
-                static constexpr bool is_warm = true;
-                const Node sub_node{sub_traj.stateTerminal(), sub_parent, sub_traj, sub_cost, sub_cost + sub_parent->cost_to_come, is_warm};
+                const Node sub_node{sub_traj.stateTerminal(), sub_parent, sub_traj, sub_cost, sub_cost + sub_parent->cost_to_come};
                 const std::shared_ptr<Node> sub_node_ptr = std::make_shared<Node>(sub_node);
                 addNode(sub_node_ptr, time_ix);
                 sub_parent = sub_node_ptr;

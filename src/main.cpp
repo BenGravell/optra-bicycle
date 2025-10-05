@@ -227,7 +227,7 @@ int main() {
         ClearBackground(COLOR_BACKGROUND);
 
         // Draw the search space
-        DrawRectangleRec(search_space_rec, COLOR_SEARCH_SPACE);
+        DrawRectangleLinesEx(search_space_rec, 3, COLOR_SEARCH_SPACE_BORDER);
 
         // Draw the obstacle
         for (const Obstacle& obstacle : obstacles) {
@@ -275,40 +275,40 @@ int main() {
 
         if (paused) {
             // Show pause overlay
-            DrawText("Paused", (SCREEN_WIDTH / 2) - (MeasureText("Paused", 20) / 2), (GUTTER_SS_Y / 2) - (20 / 2), 20, WHITE);
+            DrawText("Paused", (SCREEN_WIDTH / 2) - (MeasureText("Paused", 20) / 2), (GUTTER_SS_Y / 2) - (20 / 2), 20, COLOR_STAT);
         }
 
         // Draw pause button
-        DrawRectangleRec(pause_button, GRAY);
-        DrawText(paused ? "Resume" : "Pause", pause_button.x + 10, pause_button.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(pause_button, COLOR_BUTTON_BACKGROUND);
+        DrawText(paused ? "Resume" : "Pause", pause_button.x + 10, pause_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw advance button
-        DrawRectangleRec(advance_button, GRAY);
-        DrawText("Advance", advance_button.x + 10, advance_button.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(advance_button, COLOR_BUTTON_BACKGROUND);
+        DrawText("Advance", advance_button.x + 10, advance_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw use-warm-start button
-        DrawRectangleRec(use_warm_start_button, GRAY);
-        DrawText(use_warm_start ? "Disable warm-start tree" : "Enable warm-start tree", use_warm_start_button.x + 10, use_warm_start_button.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(use_warm_start_button, COLOR_BUTTON_BACKGROUND);
+        DrawText(use_warm_start ? "Disable warm-start tree" : "Enable warm-start tree", use_warm_start_button.x + 10, use_warm_start_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw use-exploration-tree button
-        DrawRectangleRec(use_exploration_tree_button, GRAY);
-        DrawText(use_exploration_tree ? "Disable cold-start tree" : "Enable cold-start tree", use_exploration_tree_button.x + 10, use_exploration_tree_button.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(use_exploration_tree_button, COLOR_BUTTON_BACKGROUND);
+        DrawText(use_exploration_tree ? "Disable cold-start tree" : "Enable cold-start tree", use_exploration_tree_button.x + 10, use_exploration_tree_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw use-action-jitter button
-        DrawRectangleRec(use_action_jitter_button, GRAY);
-        DrawText(use_action_jitter ? "Disable action jitter" : "Enable action jitter", use_action_jitter_button.x + 10, use_action_jitter_button.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(use_action_jitter_button, COLOR_BUTTON_BACKGROUND);
+        DrawText(use_action_jitter ? "Disable action jitter" : "Enable action jitter", use_action_jitter_button.x + 10, use_action_jitter_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw show-tree button
-        DrawRectangleRec(show_tree_button, GRAY);
-        DrawText(show_tree ? "Hide tree" : "Show tree", show_tree_button.x + 10, show_tree_button.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(show_tree_button, COLOR_BUTTON_BACKGROUND);
+        DrawText(show_tree ? "Hide tree" : "Show tree", show_tree_button.x + 10, show_tree_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw show-pre-opt-traj button
-        DrawRectangleRec(show_pre_opt_traj_button, GRAY);
-        DrawText(show_pre_opt_traj ? "Hide pre-opt traj" : "Show pre-opt traj", show_pre_opt_traj_button.x + 10, show_pre_opt_traj_button.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(show_pre_opt_traj_button, COLOR_BUTTON_BACKGROUND);
+        DrawText(show_pre_opt_traj ? "Hide pre-opt traj" : "Show pre-opt traj", show_pre_opt_traj_button.x + 10, show_pre_opt_traj_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // Draw show-post-opt-traj button
-        DrawRectangleRec(show_post_opt_traj_button, GRAY);
-        DrawText(show_post_opt_traj ? "Hide post-opt traj" : "Show post-opt traj", show_post_opt_traj_button.x + 10, show_post_opt_traj_button.y + 15, 20, RAYWHITE);
+        DrawRectangleRec(show_post_opt_traj_button, COLOR_BUTTON_BACKGROUND);
+        DrawText(show_post_opt_traj ? "Hide post-opt traj" : "Show post-opt traj", show_post_opt_traj_button.x + 10, show_post_opt_traj_button.y + 15, 20, COLOR_BUTTON_TEXT);
 
         // ---- Text stats
         static constexpr int STATS_MARGIN = 10;
@@ -336,27 +336,27 @@ int main() {
         game_upd_clock_time = static_cast<int>(lerp(static_cast<int>(1e6 * delta_time), game_upd_clock_time, game_upd_clock_momentum));
 
         // Column 1
-        DrawTextEx(mono_font, TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WHITE);
-        DrawTextEx(mono_font, TextFormat("Traj opt: %5.1f ms", 0.001 * static_cast<double>(traj_opt_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WHITE);
-        DrawTextEx(mono_font, TextFormat("Draw elm: %5.1f ms", 0.001 * static_cast<double>(draw_elm_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, LIGHTGRAY);
-        DrawTextEx(mono_font, TextFormat("Game upd: %5.1f ms", 0.001 * static_cast<double>(game_upd_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, LIGHTGRAY);
+        DrawTextEx(mono_font, TextFormat("Tree exp: %5.1f ms", 0.001 * static_cast<double>(tree_exp_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
+        DrawTextEx(mono_font, TextFormat("Traj opt: %5.1f ms", 0.001 * static_cast<double>(traj_opt_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
+        DrawTextEx(mono_font, TextFormat("Draw elm: %5.1f ms", 0.001 * static_cast<double>(draw_elm_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT_MINOR);
+        DrawTextEx(mono_font, TextFormat("Game upd: %5.1f ms", 0.001 * static_cast<double>(game_upd_clock_time)), (Vector2){STATS_MARGIN, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT_MINOR);
 
         // Draw the planner stats
         const double v_avg = planner_outputs.out.solution.traj.state_sequence.row(3).cwiseAbs().mean();
 
         // Column 2
-        DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_YELLOW);
+        DrawTextEx(mono_font, TextFormat("       Traj  avg speed %5.3f m/s", v_avg), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
         int num_nodes = 0;
         for (const auto nodes : planner_outputs.out.tree.layers) {
             num_nodes += nodes.size();
         }
-        DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", num_nodes), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_ORANGE);
-        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, 20, 1, MONOKAI_ORANGE);
+        DrawTextEx(mono_font, TextFormat("       Number of nodes %5d", num_nodes), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
+        DrawTextEx(mono_font, TextFormat("       Traj  opt iters %5d", planner_outputs.out.solution.solve_record.iters), (Vector2){STATS_MARGIN + STATS_WIDTH_1, STATS_MARGIN + 3 * STATS_ROW_HEIGHT}, 20, 1, COLOR_STAT);
 
         // Column 3
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, sol %9.6f", planner_outputs.out.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WHITE);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_RED);
-        DrawTextEx(mono_font, TextFormat("    Post-opt cost, aux %9.6f", planner_outputs.aux.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, MONOKAI_BLUE);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, sol %9.6f", planner_outputs.out.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 0 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COLOR_STAT);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, pri %9.6f", planner_outputs.pri.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 1 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, WARM_RED);
+        DrawTextEx(mono_font, TextFormat("    Post-opt cost, aux %9.6f", planner_outputs.aux.solution.cost), (Vector2){STATS_MARGIN + STATS_WIDTH_1 + STATS_WIDTH_2, STATS_MARGIN + 2 * STATS_ROW_HEIGHT}, STATS_FONT_SIZE, 1, COOL_BLUE);
 
         // Time plots.
         {
