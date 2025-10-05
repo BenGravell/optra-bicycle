@@ -239,24 +239,6 @@ struct Tree {
         return nearest_node;
     }
 
-    const NodePtr getNearestLimited(const StateVector& target, const int target_time_ix, const int max_num_neighbors) const {
-        double min_cost = std::numeric_limits<double>::max();
-        NodePtr nearest_node = nullptr;
-        const Nodes& nodes = layers[target_time_ix - 1];
-        for (int i = 0; i < max_num_neighbors; ++i) {
-            const int index = std::rand() % nodes.size();
-            const NodePtr node = nodes[index];
-
-            const double cost = zapDistanceHeuristic(node->state, target);
-            if (cost < min_cost) {
-                min_cost = cost;
-                nearest_node = node;
-            }
-        }
-
-        return nearest_node;
-    }
-
     // Get the node which is nearest to the target in terms of achieving the lowest cost to come to the target via the node.
     const NodePtr getNearestCostToCome(const StateVector& target, const int target_time_ix) const {
         double min_cost_to_come = std::numeric_limits<double>::max();
@@ -366,10 +348,6 @@ struct Tree {
 
                 // Set the parent.
                 NodePtr parent = getNearest(state, time_ix);
-
-                // // Use getNearestLimited to keep the search for a parent quick, even for large trees.
-                // static constexpr int max_num_neighbors = 64;
-                // NodePtr parent = getNearestLimited(state, time_ix, max_num_neighbors);
 
                 // Could not find a parent.
                 if (parent == nullptr) {
