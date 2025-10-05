@@ -328,14 +328,7 @@ struct Tree {
         }
 
         // Sampled state is in collision.
-        bool in_collision = false;
-        for (const auto& obstacle : obstacles) {
-            if (obstacle.collidesWith(state)) {
-                in_collision = true;
-                break;
-            }
-        }
-        if (in_collision) {
+        if (obstaclesCollidesWith(obstacles, state)) {
             return;
         }
 
@@ -353,14 +346,7 @@ struct Tree {
         state = traj.stateTerminal();
 
         // Trajectory is in collision.
-        // TODO factor this to a function
-        for (const auto& obstacle : obstacles) {
-            if (obstacle.collidesWith(traj)) {
-                in_collision = true;
-                break;
-            }
-        }
-        if (in_collision) {
+        if (obstaclesCollidesWith(obstacles, traj)) {
             return;
         }
 
@@ -397,24 +383,13 @@ struct Tree {
             const bool constrain = true;
             const auto steer_outputs = steer(node->state, goal, constrain);
 
-            // Check if collision-free
-            bool in_collision = false;
-            for (const auto& obstacle : obstacles) {
-                if (obstacle.collidesWith(steer_outputs.traj)) {
-                    in_collision = true;
-                    break;
-                }
-            }
-            if (in_collision) {
+            if (obstaclesCollidesWith(steer_outputs.traj)) {
                 continue;
             }
             if (outsideEnvironment(steer_outputs.traj)) {
                 continue;
             }
-
-            // Check if goal hit
-            const bool target_hit = checkTargetHit(node->state, goal);
-            if (!target_hit) {
+            if (!checkTargetHit(node->state, goal)) {
                 continue;
             }
 

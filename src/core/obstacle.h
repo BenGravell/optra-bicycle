@@ -58,8 +58,18 @@ struct Obstacle {
 };
 
 inline bool obstaclesCollidesWith(std::vector<Obstacle> obstacles, const StateVector& state) {
-    for (const auto& obstacle : obstacles) {
+    for (const Obstacle& obstacle : obstacles) {
         if (obstacle.collidesWith(state)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <int N>
+bool obstaclesCollidesWith(std::vector<Obstacle> obstacles, const Trajectory<N>& traj) {
+    for (const Obstacle& obstacle : obstacles) {
+        if (obstacle.collidesWith(traj)) {
             return true;
         }
     }
