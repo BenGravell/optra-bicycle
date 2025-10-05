@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdlib>
+#include <iostream>
 
 // Macro to check a condition and abort with the condition printed
 #define CHECK(condition)                                                   \

@@ -1,28 +1,23 @@
 #include <raylib.h>
 #include <raymath.h>
 
-#include <chrono>
+#include <algorithm>
 #include <cmath>
-#include <cstdint>
-#include <cstdlib>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
 #include <optional>
-#include <sstream>
-#include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "app/colors.h"
 #include "app/drawing.h"
 #include "app/transforms.h"
-#include "core/problem.h"
-#include "core/rollout.h"
+#include "core/constants.h"
+#include "core/loss.h"
+#include "core/obstacle.h"
 #include "core/search_space.h"
 #include "core/space.h"
+#include "core/trajectory.h"
 #include "core/util.h"
 #include "ilqr/solver.h"
-#include "ilqr/solver_settings.h"
 #include "planner/planner.h"
 #include "tree/tree.h"
 

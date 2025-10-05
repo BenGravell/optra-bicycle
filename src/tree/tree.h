@@ -17,7 +17,6 @@
 #include "core/space.h"
 #include "core/trajectory.h"
 #include "core/util.h"
-#include "ilqr/solver.h"
 #include "tree/node.h"
 #include "tree/steer.h"
 
@@ -206,7 +205,8 @@ inline bool checkTargetHit(const StateVector& state, const StateVector& target) 
     const double dv = delta(3);
 
     // TODO use the TerminalStateParams.
-    // Current numbers are hardcoded to match what is in problem.h -> makeProblem() -> terminal_state_params
+    // Current numbers are hardcoded to match what is in 
+    // problem.h -> makeProblem() -> terminal_state_params
     // and set as a factor of those thresholds.
     static constexpr double tol_factor = 1.0;
     const bool dx_hit = std::abs(dx) < (tol_factor * 0.01);

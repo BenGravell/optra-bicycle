@@ -178,43 +178,30 @@ struct MultiPlanner {
         } else if (settings.use_warm && settings.use_cold) {
             // ---- Combine the warm and cold planner outputs.
 
-            // Check if primary and auxiliary planner solutions are valid.
-            const bool pri_soln_valid = checkTargetHit(planner_outputs.warm.solution.traj.stateTerminal(), goal);
-            const bool aux_soln_valid = checkTargetHit(planner_outputs.cold.solution.traj.stateTerminal(), goal);
+            // Check if warm and cold planner solutions are valid.
+            const bool warm_soln_valid = checkTargetHit(planner_outputs.warm.solution.traj.stateTerminal(), goal);
+            const bool cold_soln_valid = checkTargetHit(planner_outputs.cold.solution.traj.stateTerminal(), goal);
 
             // Decide which solution to use.
-            bool use_aux_soln = false;
-            if (pri_soln_valid && aux_soln_valid) {
+            bool use_cold_soln = false;
+            if (warm_soln_valid && cold_soln_valid) {
                 // If both solutions are valid, use the lower-cost one.
-                const bool aux_cost_is_better = planner_outputs.cold.solution.cost < planner_outputs.warm.solution.cost;
-                use_aux_soln = aux_cost_is_better;
-            } else if (!pri_soln_valid && aux_soln_valid) {
+                use_cold_soln = planner_outputs.cold.solution.cost < planner_outputs.warm.solution.cost;
+            } else if (!warm_soln_valid && cold_soln_valid) {
                 // If cold solution is valid but not the primary solution, use the cold one.
-                use_aux_soln = true;
-            } else if (pri_soln_valid && !aux_soln_valid) {
+                use_cold_soln = true;
+            } else if (warm_soln_valid && !cold_soln_valid) {
                 // If warm solution is valid but not the cold solution, do not use the cold one.
-                use_aux_soln = false;
+                use_cold_soln = false;
             } else {
                 // If neither solution is valid, use the one that hits closer to the goal.
-                const double d_pri = distanceHeuristic(planner_outputs.warm.solution.traj.stateTerminal(), goal);
-                const double d_aux = distanceHeuristic(planner_outputs.cold.solution.traj.stateTerminal(), goal);
-                const bool aux_hits_closer_to_goal = d_aux < d_pri;
-                use_aux_soln = aux_hits_closer_to_goal;
+                const double d_warm = distanceHeuristic(planner_outputs.warm.solution.traj.stateTerminal(), goal);
+                const double d_cold = distanceHeuristic(planner_outputs.cold.solution.traj.stateTerminal(), goal);
+                use_cold_soln = d_cold < d_warm;
             }
 
             // Replace outputs.
-            // TODO replacing/adding each field is error prone, put in a function or handle more elegantly.
-            if (use_aux_soln) {
-                planner_outputs.out.tree = planner_outputs.cold.tree;
-                planner_outputs.out.path = planner_outputs.cold.path;
-                planner_outputs.out.solution = planner_outputs.cold.solution;
-                planner_outputs.out.traj_pre_opt = planner_outputs.cold.traj_pre_opt;
-            } else {
-                planner_outputs.out.tree = planner_outputs.warm.tree;
-                planner_outputs.out.path = planner_outputs.warm.path;
-                planner_outputs.out.solution = planner_outputs.warm.solution;
-                planner_outputs.out.traj_pre_opt = planner_outputs.warm.traj_pre_opt;
-            }
+            planner_outputs.out = use_cold_soln ? planner_outputs.cold : planner_outputs.warm;
             // Add outputs.
             planner_outputs.out.timing_info.tree_exp = planner_outputs.warm.timing_info.tree_exp + planner_outputs.cold.timing_info.tree_exp;
             planner_outputs.out.timing_info.traj_opt = planner_outputs.warm.timing_info.traj_opt + planner_outputs.cold.timing_info.traj_opt;
