@@ -314,8 +314,142 @@ struct Tree {
         }
     }
 
+    void growSingleNode(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix) {
+        // Sample a new state.
+        StateVector state = sample(goal, warm_traj, time_ix);
+
+        // Set the parent.
+        NodePtr parent = getNearest(state, time_ix);
+
+        // Could not find a parent.
+        if (parent == nullptr) {
+            return;
+        }
+
+        // Sampled state is in collision.
+        bool in_collision = false;
+        for (const auto& obstacle : obstacles) {
+            if (obstacle.collidesWith(state)) {
+                in_collision = true;
+                break;
+            }
+        }
+        if (in_collision) {
+            return;
+        }
+
+        // Steer from parent to child.
+        // NOTE: Using projection onto the action constraints is critical to sampling efficiency.
+        // Using rejection sampling to honor action constraints leads to very few feasible samples and long runtimes.
+        // NOTE: Using projection tends to produce bang-bang trajectories.
+        // This might not be good on its own, but using traj opt post-processing mitigates any ill-effects.
+        const bool constrain = true;
+        const auto steer_outputs = steer(parent->state, state, constrain);
+        const auto& traj = steer_outputs.traj;
+        const double cost = steer_outputs.cost;
+
+        // Reset state sample as the terminal state in the trajectory.
+        state = traj.stateTerminal();
+
+        // Trajectory is in collision.
+        for (const auto& obstacle : obstacles) {
+            if (obstacle.collidesWith(traj)) {
+                in_collision = true;
+                break;
+            }
+        }
+        if (in_collision) {
+            return;
+        }
+
+        // Something, e.g. steering or action constraint projection,
+        // caused a trajectory state to go outside the environment.
+        if (outsideEnvironment(traj)) {
+            return;
+        }
+
+        // Create node from sampled state and add to the tree.
+        const Node node{state, parent, traj, cost, cost + parent->cost_to_come};
+        const NodePtr node_ptr = std::make_shared<Node>(node);
+        addNode(node_ptr, time_ix);
+    }
+
+    void growSingleStage(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix, const int num_node_attempts_per_stage) {
+        for (int node_attempt_ix = 0; node_attempt_ix < num_node_attempts_per_stage; ++node_attempt_ix) {
+            growSingleNode(goal, warm_traj, time_ix);
+        }
+    }
+
+    void growStages(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int num_node_attempts) {
+        const int num_node_attempts_per_stage = num_node_attempts / (TIME_IX_MAX + 1);
+        for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
+            growSingleStage(goal, warm_traj, time_ix, num_node_attempts_per_stage);
+        }
+    }
+
+    void growGoalNode(const StateVector& goal) {
+        // ---- Find parent
+        double min_cost_to_come = std::numeric_limits<double>::max();
+        NodePtr node_nearest_goal = nullptr;
+        for (NodePtr node : layers[TIME_IX_GOAL - 1]) {
+            // Steer from node to target.
+            const bool constrain = true;
+            const auto steer_outputs = steer(node->state, goal, constrain);
+
+            // Check if collision-free
+            bool in_collision = false;
+            for (const auto& obstacle : obstacles) {
+                if (obstacle.collidesWith(steer_outputs.traj)) {
+                    in_collision = true;
+                    break;
+                }
+            }
+            if (in_collision) {
+                continue;
+            }
+            if (outsideEnvironment(steer_outputs.traj)) {
+                continue;
+            }
+
+            // Check if goal hit
+            static constexpr double tol_factor = 1.0;
+            const bool target_hit = checkTargetHit(node->state, goal, tol_factor);
+            if (!target_hit) {
+                continue;
+            }
+
+            // Check if cost-to-come is improved relative to current best.
+            const double cost_to_come = node->cost_to_come + steer_outputs.cost;
+            const bool cost_improved = cost_to_come < min_cost_to_come;
+
+            if (cost_improved) {
+                min_cost_to_come = cost_to_come;
+                node_nearest_goal = node;
+            }
+        }
+        // Fallback in case collision and goal-hit checks discarded everything.
+        // NOTE: This should produce non-nullptr node_nearest_goal with full parent chain to root since we added zero-action fallback earlier.
+        if (node_nearest_goal == nullptr) {
+            node_nearest_goal = getNearestCostToCome(goal, TIME_IX_GOAL);
+        }
+        assert(node_nearest_goal != nullptr);
+
+        // Steer from parent to goal.
+        const bool constrain = true;
+        const auto steer_outputs = steer(node_nearest_goal->state, goal, constrain);
+        const auto& traj = steer_outputs.traj;
+        const double cost = steer_outputs.cost;
+        const StateVector& state = traj.stateTerminal();
+
+        // Add node.
+        // This ensures the tree always has one node with time_ix = TIME_IX_GOAL.
+        const Node node{state, node_nearest_goal, traj, cost, cost + node_nearest_goal->cost_to_come};
+        const NodePtr node_ptr = std::make_shared<Node>(node);
+        addNode(node_ptr, TIME_IX_GOAL);
+    }
+
     void grow(const StateVector& start, const StateVector& goal, const int num_node_attempts, std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj = std::nullopt) {
-        // Create root node and add to the tree.
+        // Add root node.
         // Root node is the only node in tree.layers[0]
         const Node root = Node(start, nullptr, std::nullopt, 0.0, 0.0);
         const NodePtr root_ptr = std::make_shared<Node>(root);
@@ -335,136 +469,11 @@ struct Tree {
             growWarm(root_ptr, warm_traj.value());
         }
 
-        // Grow the tree by adding samples.
-        // TODO make this a method
-        for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
-            // Add nodes in this stage.
-            int num_node_attempts_per_stage = num_node_attempts / (TIME_IX_MAX + 1);
-            for (int node_attempt_ix = 0; node_attempt_ix < num_node_attempts_per_stage; ++node_attempt_ix) {
-                // Attempt to add a single node.
+        // Add samples for all stages.
+        growStages(goal, warm_traj, num_node_attempts);
 
-                // Sample a new state.
-                StateVector state = sample(goal, warm_traj, time_ix);
-
-                // Set the parent.
-                NodePtr parent = getNearest(state, time_ix);
-
-                // Could not find a parent.
-                if (parent == nullptr) {
-                    continue;
-                }
-
-                // Sampled state is in collision.
-                bool in_collision = false;
-                for (const auto& obstacle : obstacles) {
-                    if (obstacle.collidesWith(state)) {
-                        in_collision = true;
-                        break;
-                    }
-                }
-                if (in_collision) {
-                    continue;
-                }
-
-                // Steer from parent to child.
-                // NOTE: Using projection onto the action constraints is critical to sampling efficiency.
-                // Using rejection sampling to honor action constraints leads to very few feasible samples and long runtimes.
-                // NOTE: Using projection tends to produce bang-bang trajectories.
-                // This might not be good on its own, but using traj opt post-processing mitigates any ill-effects.
-                const bool constrain = true;
-                const auto steer_outputs = steer(parent->state, state, constrain);
-                const auto& traj = steer_outputs.traj;
-                const double cost = steer_outputs.cost;
-
-                // Reset state sample as the terminal state in the trajectory.
-                state = traj.stateTerminal();
-
-                // Trajectory is in collision.
-                for (const auto& obstacle : obstacles) {
-                    if (obstacle.collidesWith(traj)) {
-                        in_collision = true;
-                        break;
-                    }
-                }
-                if (in_collision) {
-                    continue;
-                }
-
-                // Something, e.g. steering or action constraint projection,
-                // caused a trajectory state to go outside the environment.
-                if (outsideEnvironment(traj)) {
-                    continue;
-                }
-
-                // Create node from sampled state and add to the tree.
-                const Node node{state, parent, traj, cost, cost + parent->cost_to_come};
-                const NodePtr node_ptr = std::make_shared<Node>(node);
-                addNode(node_ptr, time_ix);
-            }
-        }
-
-        // ---- Add node to steer to goal.
-        // TODO make this a method
-        {
-            // ---- Find parent
-            double min_cost_to_come = std::numeric_limits<double>::max();
-            NodePtr node_nearest_goal = nullptr;
-            for (NodePtr node : layers[TIME_IX_GOAL - 1]) {
-                // Steer from node to target.
-                const bool constrain = true;
-                const auto steer_outputs = steer(node->state, goal, constrain);
-
-                // Check if collision-free
-                bool in_collision = false;
-                for (const auto& obstacle : obstacles) {
-                    if (obstacle.collidesWith(steer_outputs.traj)) {
-                        in_collision = true;
-                        break;
-                    }
-                }
-                if (in_collision) {
-                    continue;
-                }
-                if (outsideEnvironment(steer_outputs.traj)) {
-                    continue;
-                }
-
-                // Check if goal hit
-                static constexpr double tol_factor = 1.0;
-                const bool target_hit = checkTargetHit(node->state, goal, tol_factor);
-                if (!target_hit) {
-                    continue;
-                }
-
-                // Check if cost-to-come is improved relative to current best.
-                const double cost_to_come = node->cost_to_come + steer_outputs.cost;
-                const bool cost_improved = cost_to_come < min_cost_to_come;
-
-                if (cost_improved) {
-                    min_cost_to_come = cost_to_come;
-                    node_nearest_goal = node;
-                }
-            }
-            // Fallback in case collision and goal-hit checks discarded everything.
-            // NOTE: This should produce non-nullptr node_nearest_goal with full parent chain to root since we added zero-action fallback earlier.
-            if (node_nearest_goal == nullptr) {
-                node_nearest_goal = getNearestCostToCome(goal, TIME_IX_GOAL);
-            }
-            assert(node_nearest_goal != nullptr);
-
-            // Steer from parent to goal.
-            const bool constrain = true;
-            const auto steer_outputs = steer(node_nearest_goal->state, goal, constrain);
-            const auto& traj = steer_outputs.traj;
-            const double cost = steer_outputs.cost;
-            const StateVector& state = traj.stateTerminal();
-
-            // Add node.
-            // This ensures the tree always has one node with time_ix = TIME_IX_GOAL.
-            const Node node{state, node_nearest_goal, traj, cost, cost + node_nearest_goal->cost_to_come};
-            const NodePtr node_ptr = std::make_shared<Node>(node);
-            addNode(node_ptr, TIME_IX_GOAL);
-        }
+        // Add goal node.
+        growGoalNode(goal);
     }
 
     Path extractPathToGoal() const {
