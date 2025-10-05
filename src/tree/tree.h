@@ -105,7 +105,7 @@ inline SteerOutputs steer(const StateVector& start, const StateVector& goal, con
     return {traj, cost};
 }
 
-using Path = std::array<std::shared_ptr<Node>, NUM_STEER_SEGMENTS>;
+using Path = std::array<NodePtr, NUM_STEER_SEGMENTS>;
 
 inline double urand() {
     static std::uniform_real_distribution<double> dist(0.0, 1.0);
@@ -155,14 +155,14 @@ inline StateVector sampleNear(const StateVector& state, const double perturb_fac
     return {x, y, yaw, v};
 }
 
-inline StateVector sampleNearWarm(const Solution<TRAJ_LENGTH_OPT>& warm, const int time_ix) {
+inline StateVector sampleNearWarm(const Trajectory<TRAJ_LENGTH_OPT>& warm_traj, const int time_ix) {
     const int stage_ix = time_ix * TRAJ_LENGTH_STEER;
-    const StateVector& state = warm.traj.stateAt(stage_ix);
+    const StateVector& state = warm_traj.stateAt(stage_ix);
     static constexpr double perturb_factor = 2.0;
     return sampleNear(state, perturb_factor);
 }
 
-inline StateVector sample(const StateVector& goal, const std::optional<Solution<TRAJ_LENGTH_OPT>>& warm, const int time_ix) {
+inline StateVector sample(const StateVector& goal, const std::optional<Trajectory<TRAJ_LENGTH_OPT>>& warm_traj, const int time_ix) {
     // Sample near the goal sometimes.
     static constexpr double goal_sampling_proba = 0.02;
     const double selector = urand();
@@ -173,8 +173,8 @@ inline StateVector sample(const StateVector& goal, const std::optional<Solution<
     }
 
     // Sample around the warm-start trajectory, if available.
-    if (warm) {
-        return sampleNearWarm(warm.value(), time_ix);
+    if (warm_traj) {
+        return sampleNearWarm(warm_traj.value(), time_ix);
     }
 
     return sample();
@@ -216,17 +216,17 @@ inline bool checkTargetHit(const StateVector& state, const StateVector& target, 
     return dx_hit && dy_hit && dyaw_hit && dv_hit;
 }
 
-using Nodes = std::vector<std::shared_ptr<Node>>;
+using Nodes = std::vector<NodePtr>;
 using Layers = std::array<Nodes, NUM_STEER_SEGMENTS + 1>;
 
 struct Tree {
     Layers layers;
 
-    const std::shared_ptr<Node> getNearest(const StateVector& target, const int target_time_ix) const {
+    const NodePtr getNearest(const StateVector& target, const int target_time_ix) const {
         double min_cost = std::numeric_limits<double>::max();
-        std::shared_ptr<Node> nearest_node = nullptr;
+        NodePtr nearest_node = nullptr;
         const Nodes& nodes = layers[target_time_ix - 1];
-        for (std::shared_ptr<Node> node : nodes) {
+        for (NodePtr node : nodes) {
             const double cost = zapDistanceHeuristic(node->state, target);
             if (cost < min_cost) {
                 min_cost = cost;
@@ -237,13 +237,13 @@ struct Tree {
         return nearest_node;
     }
 
-    const std::shared_ptr<Node> getNearestLimited(const StateVector& target, const int target_time_ix, const int max_num_neighbors) const {
+    const NodePtr getNearestLimited(const StateVector& target, const int target_time_ix, const int max_num_neighbors) const {
         double min_cost = std::numeric_limits<double>::max();
-        std::shared_ptr<Node> nearest_node = nullptr;
+        NodePtr nearest_node = nullptr;
         const Nodes& nodes = layers[target_time_ix - 1];
         for (int i = 0; i < max_num_neighbors; ++i) {
             const int index = std::rand() % nodes.size();
-            const std::shared_ptr<Node> node = nodes[index];
+            const NodePtr node = nodes[index];
 
             const double cost = zapDistanceHeuristic(node->state, target);
             if (cost < min_cost) {
@@ -256,11 +256,11 @@ struct Tree {
     }
 
     // Get the node which is nearest to the target in terms of achieving the lowest cost to come to the target via the node.
-    const std::shared_ptr<Node> getNearestCostToCome(const StateVector& target, const int target_time_ix) const {
+    const NodePtr getNearestCostToCome(const StateVector& target, const int target_time_ix) const {
         double min_cost_to_come = std::numeric_limits<double>::max();
-        std::shared_ptr<Node> nearest_node = nullptr;
+        NodePtr nearest_node = nullptr;
         const Nodes& nodes = layers[target_time_ix - 1];
-        for (std::shared_ptr<Node> node : nodes) {
+        for (NodePtr node : nodes) {
             // Steer from node to target.
             const bool constrain = false;
             const auto steer_outputs = steer(node->state, target, constrain);
@@ -282,71 +282,73 @@ struct Tree {
         return nearest_node;
     }
 
-    void addNode(const std::shared_ptr<Node>& node, const int time_ix) {
+    void addNode(const NodePtr& node, const int time_ix) {
         layers[time_ix].push_back(node);
     }
 
-    void grow(const StateVector& start, const StateVector& goal, const int num_node_attempts, std::optional<Solution<TRAJ_LENGTH_OPT>> warm = std::nullopt) {
-        // Create root node and add to the tree.
-        // Root node is the only node in tree.layers[0]
-        const Trajectory<TRAJ_LENGTH_STEER> root_traj;
-        const int time_ix_root_node = 0;
-        const Node root_node = Node(start, nullptr, root_traj, 0.0, 0.0);
-        const std::shared_ptr<Node> root_node_ptr = std::make_shared<Node>(root_node);
-        addNode(root_node_ptr, time_ix_root_node);
-
+    void growZap(const NodePtr& root) {
         // Add zero action nodes as a fallback.
         // This ensures there is always at least one node in each layer,
         // which is needed later for the final steer to goal node and extractPathToNode call,
         // which expects fully connected parent chain to root.
         // NOTE: this ignores collisions and outsideEnvironment constraints.
-        // TODO make this a method
-        {
-            std::shared_ptr<Node> parent = root_node_ptr;
-            for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
-                const bool constrain = true;
-                const auto steer_outputs = steer(parent->state, rolloutZeroAction(parent->state, TRAJ_DURATION_STEER), constrain);
-                const auto& traj = steer_outputs.traj;
-                const double cost = steer_outputs.cost;
-                const StateVector& state = traj.stateTerminal();
-
-                const Node node = Node(state, parent, traj, cost, cost + parent->cost_to_come);
-                const std::shared_ptr<Node> node_ptr = std::make_shared<Node>(node);
-                addNode(node_ptr, time_ix);
-                parent = node_ptr;
-            }
+        NodePtr parent = root;
+        for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
+            const bool constrain = true;
+            const auto steer_outputs = steer(parent->state, rolloutZeroAction(parent->state, TRAJ_DURATION_STEER), constrain);
+            const auto& traj = steer_outputs.traj;
+            const double cost = steer_outputs.cost;
+            const StateVector& state = traj.stateTerminal();
+            const Node node = Node(state, parent, traj, cost, cost + parent->cost_to_come);
+            const NodePtr node_ptr = std::make_shared<Node>(node);
+            addNode(node_ptr, time_ix);
+            parent = node_ptr;
         }
+    }
 
-        // Re-rollout the warm-start actions from the given start.
-        if (warm) {
-            Trajectory<TRAJ_LENGTH_OPT> traj;
-            rolloutOpenLoopConstrained(warm->traj.action_sequence, start, traj);
-            warm->traj = traj;
-        }
-
-        // Add warm-start nodes.
-        // TODO make this a method
-        if (warm) {
-            // Break solution up into several smaller sub-nodes.
-            std::shared_ptr<Node> sub_parent = root_node_ptr;
-            for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
-                // Infer the indices into the whole solution for the current sub-node.
-                const int ix_offset = (time_ix - 1) * TRAJ_LENGTH_STEER;
-                // Form the sub-node.
-                Trajectory<TRAJ_LENGTH_STEER> sub_traj;
-                for (int stage_ix = 0; stage_ix <= TRAJ_LENGTH_STEER; ++stage_ix) {
-                    const int ix_in_warm_traj = ix_offset + stage_ix;
-                    sub_traj.setStateAt(stage_ix, warm->traj.stateAt(ix_in_warm_traj));
-                    if (stage_ix < TRAJ_LENGTH_STEER) {
-                        sub_traj.setActionAt(stage_ix, warm->traj.actionAt(ix_in_warm_traj));
-                    }
+    void growWarm(const NodePtr& root, const Trajectory<TRAJ_LENGTH_OPT>& warm_traj) {
+        // Break warm_traj up into several smaller sub-nodes.
+        NodePtr parent = root;
+        for (int time_ix = 1; time_ix <= TIME_IX_MAX; ++time_ix) {
+            // Infer the indices into the whole warm_traj for the current sub-node.
+            const int ix_offset = (time_ix - 1) * TRAJ_LENGTH_STEER;
+            // Form the sub-node.
+            Trajectory<TRAJ_LENGTH_STEER> traj;
+            for (int stage_ix = 0; stage_ix <= TRAJ_LENGTH_STEER; ++stage_ix) {
+                const int ix_in_warm_traj = ix_offset + stage_ix;
+                traj.setStateAt(stage_ix, warm_traj.stateAt(ix_in_warm_traj));
+                if (stage_ix < TRAJ_LENGTH_STEER) {
+                    traj.setActionAt(stage_ix, warm_traj.actionAt(ix_in_warm_traj));
                 }
-                const double sub_cost = softLoss(sub_traj);
-                const Node sub_node{sub_traj.stateTerminal(), sub_parent, sub_traj, sub_cost, sub_cost + sub_parent->cost_to_come};
-                const std::shared_ptr<Node> sub_node_ptr = std::make_shared<Node>(sub_node);
-                addNode(sub_node_ptr, time_ix);
-                sub_parent = sub_node_ptr;
             }
+            const double cost = softLoss(traj);
+            const StateVector& state = traj.stateTerminal();
+            const Node node = Node(state, parent, traj, cost, cost + parent->cost_to_come);
+            const NodePtr node_ptr = std::make_shared<Node>(node);
+            addNode(node_ptr, time_ix);
+            parent = node_ptr;
+        }
+    }
+
+    void grow(const StateVector& start, const StateVector& goal, const int num_node_attempts, std::optional<Trajectory<TRAJ_LENGTH_OPT>> warm_traj = std::nullopt) {
+        // Create root node and add to the tree.
+        // Root node is the only node in tree.layers[0]
+        const Node root = Node(start, nullptr, std::nullopt, 0.0, 0.0);
+        const NodePtr root_ptr = std::make_shared<Node>(root);
+        addNode(root_ptr, 0);
+
+        // Add zero-action nodes.
+        growZap(root_ptr);
+
+        if (warm_traj) {
+            // Re-rollout the warm-start actions from the given start.
+            // This mutates warm->traj.
+            Trajectory<TRAJ_LENGTH_OPT> new_warm_traj;
+            rolloutOpenLoopConstrained(warm_traj->action_sequence, start, new_warm_traj);
+            warm_traj = new_warm_traj;
+
+            // Add warm-start nodes.
+            growWarm(root_ptr, warm_traj.value());
         }
 
         // Grow the tree by adding samples.
@@ -358,14 +360,14 @@ struct Tree {
                 // Attempt to add a single node.
 
                 // Sample a new state.
-                StateVector state = sample(goal, warm, time_ix);
+                StateVector state = sample(goal, warm_traj, time_ix);
 
                 // Set the parent.
-                std::shared_ptr<Node> parent = getNearest(state, time_ix);
+                NodePtr parent = getNearest(state, time_ix);
 
                 // // Use getNearestLimited to keep the search for a parent quick, even for large trees.
                 // static constexpr int max_num_neighbors = 64;
-                // std::shared_ptr<Node> parent = getNearestLimited(state, time_ix, max_num_neighbors);
+                // NodePtr parent = getNearestLimited(state, time_ix, max_num_neighbors);
 
                 // Could not find a parent.
                 if (parent == nullptr) {
@@ -416,7 +418,7 @@ struct Tree {
 
                 // Create node from sampled state and add to the tree.
                 const Node node{state, parent, traj, cost, cost + parent->cost_to_come};
-                const std::shared_ptr<Node> node_ptr = std::make_shared<Node>(node);
+                const NodePtr node_ptr = std::make_shared<Node>(node);
                 addNode(node_ptr, time_ix);
             }
         }
@@ -426,8 +428,8 @@ struct Tree {
         {
             // ---- Find parent
             double min_cost_to_come = std::numeric_limits<double>::max();
-            std::shared_ptr<Node> node_nearest_goal = nullptr;
-            for (std::shared_ptr<Node> node : layers[TIME_IX_GOAL - 1]) {
+            NodePtr node_nearest_goal = nullptr;
+            for (NodePtr node : layers[TIME_IX_GOAL - 1]) {
                 // Steer from node to target.
                 const bool constrain = true;
                 const auto steer_outputs = steer(node->state, goal, constrain);
@@ -480,7 +482,7 @@ struct Tree {
             // Add node.
             // This ensures the tree always has one node with time_ix = TIME_IX_GOAL.
             const Node node{state, node_nearest_goal, traj, cost, cost + node_nearest_goal->cost_to_come};
-            const std::shared_ptr<Node> node_ptr = std::make_shared<Node>(node);
+            const NodePtr node_ptr = std::make_shared<Node>(node);
             addNode(node_ptr, TIME_IX_GOAL);
         }
     }
@@ -489,7 +491,7 @@ struct Tree {
         // Reconstruct the path by traversing parent pointers.
         Path path;
         // There should only be a single node in layers[TIME_IX_GOAL], which is the goal node.
-        std::shared_ptr<Node> node = layers[TIME_IX_GOAL].front();
+        NodePtr node = layers[TIME_IX_GOAL].front();
         for (int time_ix = TIME_IX_GOAL; time_ix >= 1; --time_ix) {
             path[time_ix - 1] = node;
             node = node->parent;

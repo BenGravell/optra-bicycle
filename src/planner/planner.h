@@ -31,7 +31,7 @@ struct Planner {
         const float clock_start = GetTime();
 
         Tree tree;
-        tree.grow(start, goal, num_node_attempts, warm);
+        tree.grow(start, goal, num_node_attempts, warm ? std::optional(warm->traj) : std::nullopt);
 
         const float clock_stop = GetTime();
         const int clock_time = static_cast<int>(std::ceil(1e6 * (clock_stop - clock_start)));
@@ -43,7 +43,7 @@ struct Planner {
         // Concatenate actions from all nodes of path.
         ActionSequence<TRAJ_LENGTH_OPT> action_sequence;
         int j = 0;
-        for (const std::shared_ptr<Node>& node : path) {
+        for (const NodePtr& node : path) {
             if (!node->traj) {
                 continue;
             }
