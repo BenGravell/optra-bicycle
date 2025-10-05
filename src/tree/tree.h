@@ -319,7 +319,7 @@ struct Tree {
         StateVector state = sample(goal, warm_traj, time_ix);
 
         // Set the parent.
-        NodePtr parent = getNearest(state, time_ix);
+        const NodePtr parent = getNearest(state, time_ix);
 
         // Could not find a parent.
         if (parent == nullptr) {
@@ -387,10 +387,9 @@ struct Tree {
         }
     }
 
-    void growGoalNode(const StateVector& goal) {
-        // ---- Find parent
+    const NodePtr getGoalParent(const StateVector& goal) const {
         double min_cost_to_come = std::numeric_limits<double>::max();
-        NodePtr node_nearest_goal = nullptr;
+        NodePtr goal_parent = nullptr;
         for (NodePtr node : layers[TIME_IX_GOAL - 1]) {
             // Steer from node to target.
             const bool constrain = true;
@@ -424,26 +423,35 @@ struct Tree {
 
             if (cost_improved) {
                 min_cost_to_come = cost_to_come;
-                node_nearest_goal = node;
+                goal_parent = node;
             }
         }
+
         // Fallback in case collision and goal-hit checks discarded everything.
         // NOTE: This should produce non-nullptr node_nearest_goal with full parent chain to root since we added zero-action fallback earlier.
-        if (node_nearest_goal == nullptr) {
-            node_nearest_goal = getNearestCostToCome(goal, TIME_IX_GOAL);
+        if (goal_parent == nullptr) {
+            goal_parent = getNearestCostToCome(goal, TIME_IX_GOAL);
         }
-        assert(node_nearest_goal != nullptr);
+
+        assert(goal_parent != nullptr);
+
+        return goal_parent;
+    }
+
+    void growGoalNode(const StateVector& goal) {
+        // Get the parent.
+        const NodePtr parent = getGoalParent(goal);
 
         // Steer from parent to goal.
         const bool constrain = true;
-        const auto steer_outputs = steer(node_nearest_goal->state, goal, constrain);
+        const auto steer_outputs = steer(parent->state, goal, constrain);
         const auto& traj = steer_outputs.traj;
         const double cost = steer_outputs.cost;
         const StateVector& state = traj.stateTerminal();
 
         // Add node.
         // This ensures the tree always has one node with time_ix = TIME_IX_GOAL.
-        const Node node{state, node_nearest_goal, traj, cost, cost + node_nearest_goal->cost_to_come};
+        const Node node{state, parent, traj, cost, cost + parent->cost_to_come};
         const NodePtr node_ptr = std::make_shared<Node>(node);
         addNode(node_ptr, TIME_IX_GOAL);
     }
